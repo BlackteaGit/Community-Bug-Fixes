@@ -62,8 +62,8 @@ namespace Community_Bug_Fixes
 		}
 
 
-		//fixing a game crash when an exception occurs in any quest, forcing the game to fail gracefully (in vanilla the exception handling code throws exception itself on removing quests from active list while iterating on it)
-		// harmony finalizer method not working
+		//In vanilla the exception handling code throws exception itself on removing quests from active list while iterating on it
+		//sadly harmony "finalizer" patch not working for some reason, will think of another way to fix it until it will be fixed in vanilla
 		/* 
 		[HarmonyPatch(typeof(TriggerEvent), "test")]
 		public class TriggerEvent_test
@@ -85,8 +85,7 @@ namespace Community_Bug_Fixes
 				return null;
 			}
 		}
-		
-		//fixing a game crash when an exception occurs in any quest, forcing the game to fail gracefully instead
+
 		[HarmonyPatch(typeof(GameFile), "update")]
 		public class GameFile_update
 		{
