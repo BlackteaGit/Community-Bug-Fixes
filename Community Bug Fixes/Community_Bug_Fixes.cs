@@ -129,5 +129,38 @@ namespace Community_Bug_Fixes
 			}
 		}
 
+		//fixing: if hail ship with no crew, you get stuck in blurry screen (in vanilla the statement "string name = this.representative.name;" is assigned without null check and crashing on this.representative being NULL)
+		//fixing: game crash if hailing ships in arena mode
+		[HarmonyPatch(typeof(HailAnimation), "setupPlayerHailSend")]
+		public class HailAnimation_setupPlayerHailSend
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(Crew ___representative, List<ResponseImmediateAction> ___results)
+			{
+				if (PLAYER.currentSession.GetType() == typeof(BattleSessionSA) || PLAYER.currentSession.GetType() == typeof(BattleSessionTA))
+				{
+					return false; //supress executing the original method
+				}
+				if (___representative == null)
+				{					
+					PLAYER.currentSession.pause();
+					DialogueTree dialogueTree = new DialogueTree();
+					DialogueTree dialogueTree2 = new DialogueTree();
+					dialogueTree2.action = new ResponseImmediateAction(() => {
+						foreach (ResponseImmediateAction responseImmediateAction in ___results)
+						{
+							responseImmediateAction();
+						}
+					});
+					___results.Add(new ResponseImmediateAction(() => PLAYER.currentSession.unpause()));
+					var name = "One";
+					dialogueTree.text = "There doesn't seem to be anyone there...";
+					dialogueTree.addOption("goodbye", dialogueTree2);
+					return false; //supress executing the original method
+				}
+				return true; //execute the original method
+			}
+		}
+
 	}
 }
