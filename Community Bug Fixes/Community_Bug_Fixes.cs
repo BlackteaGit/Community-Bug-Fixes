@@ -162,5 +162,21 @@ namespace Community_Bug_Fixes
 			}
 		}
 
+		//fixing: using logistics room on a ship allows unintended use of logistics commands on the command source ship.
+		[HarmonyPatch(typeof(LogisticsScreenRev3), "doRightClick")]
+		public class LogisticsScreenRev3_doRightClick
+		{
+
+			[HarmonyPrefix]
+			private static void Prefix(ref string opt, Ship ___selected)
+			{	
+				if (opt != "" && ___selected.id == PLAYER.currentShip.id)
+				{
+					SCREEN_MANAGER.widgetChat.AddMessage("Invalid target. Command target ship has to be distinct from command source ship.", MessageTarget.Ship);
+					opt = "";
+				}
+			}
+		}
+
 	}
 }
