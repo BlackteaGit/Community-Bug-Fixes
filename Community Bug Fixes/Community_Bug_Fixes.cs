@@ -255,7 +255,6 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-
 		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
 		[HarmonyPatch(typeof(ShipNavigationRev3), "updateInput")]
 		public class ShipNavigationRev3_updateInput
@@ -277,14 +276,15 @@ namespace Community_Bug_Fixes
 				|| __state.IsKeyDown(CONFIG.keyBindings[3].bind) && newstate.IsKeyUp(CONFIG.keyBindings[3].bind)
 				)
 				{
-					if(PLAYER.avatar.shallNotPass())
-					{ 
-					var temp = CONFIG.keyBindings[0].bind;
-					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-					CONFIG.keyBindings[3].bind = temp;
-					temp = CONFIG.keyBindings[1].bind;
-					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-					CONFIG.keyBindings[2].bind = temp;
+					if(PLAYER.avatar.shallNotPass() && PLAYER.avatar.shuffledBinds())
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(false);
 					}
 					PLAYER.avatar.shallNotPass(false);
 				}
@@ -303,16 +303,34 @@ namespace Community_Bug_Fixes
 					if(PLAYER.avatar.shallNotPass())
 					{
 						return false;
-                    }
-					var temp = CONFIG.keyBindings[0].bind;
-					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-					CONFIG.keyBindings[3].bind = temp;
-					temp = CONFIG.keyBindings[1].bind;
-					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-					CONFIG.keyBindings[2].bind = temp;
+                    }				
 					PLAYER.avatar.shallNotPass(true);
+					PLAYER.avatar.passDirection(__instance.connectDirection);
 				}
 				return true;
+			}
+		}
+
+		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
+		[HarmonyPatch(typeof(DockSpot), "receiveCrew")]
+		public class DockSpot_receiveCrew
+		{
+			[HarmonyPostfix]
+			private static void Postfix(DockSpot __instance, Crew c)
+			{
+				if (c == PLAYER.avatar && PLAYER.avatar.shallNotPass())
+				{
+					if (PLAYER.avatar.passDirection() == __instance.airlock.connectDirection)
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(true);
+					}
+				}
 			}
 		}
 		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
@@ -342,5 +360,27 @@ namespace Community_Bug_Fixes
 		{
 			public bool Value = new bool();
 		}
+
+		static readonly ConditionalWeakTable<Crew, PassDirectionObject> passdirection = new ConditionalWeakTable<Crew, PassDirectionObject>();
+		public static ConnectDirection passDirection(this Crew crew) { return passdirection.GetOrCreateValue(crew).Value; }
+
+		public static void passDirection(this Crew crew, ConnectDirection newpassdirection) { passdirection.GetOrCreateValue(crew).Value = newpassdirection; }
+
+		class PassDirectionObject
+		{
+			public ConnectDirection Value = new ConnectDirection();
+		}
+
+		static readonly ConditionalWeakTable<Crew, ShuffledBindsObject> shuffledbinds = new ConditionalWeakTable<Crew, ShuffledBindsObject>();
+		public static bool shuffledBinds(this Crew crew) { return shuffledbinds.GetOrCreateValue(crew).Value; }
+
+		public static void shuffledBinds(this Crew crew, bool setshuffledbinds) { shuffledbinds.GetOrCreateValue(crew).Value = setshuffledbinds; }
+
+		class ShuffledBindsObject
+		{
+			public bool Value = new bool();
+		}
 	}
+
+
 }
