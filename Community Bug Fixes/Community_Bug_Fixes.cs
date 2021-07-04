@@ -8,6 +8,7 @@ using WTFModLoader;
 using WTFModLoader.Manager;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Community_Bug_Fixes
 {
@@ -254,5 +255,92 @@ namespace Community_Bug_Fixes
 			}
 		}
 
+
+		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
+		[HarmonyPatch(typeof(ShipNavigationRev3), "updateInput")]
+		public class ShipNavigationRev3_updateInput
+		{
+			[HarmonyPrefix]
+			private static void Prefix(ref KeyboardState __state, KeyboardState ___oldState)
+			{
+				__state = ___oldState;
+			}
+
+			[HarmonyPostfix]
+			private static void Postfix(ShipNavigationRev3 __instance, KeyboardState __state)
+			{
+				KeyboardState newstate = Keyboard.GetState();
+				if(PLAYER.avatar != null &&
+				__state.IsKeyDown(CONFIG.keyBindings[0].bind) && newstate.IsKeyUp(CONFIG.keyBindings[0].bind) 
+				|| __state.IsKeyDown(CONFIG.keyBindings[1].bind) && newstate.IsKeyUp(CONFIG.keyBindings[1].bind) 
+				|| __state.IsKeyDown(CONFIG.keyBindings[2].bind) && newstate.IsKeyUp(CONFIG.keyBindings[2].bind) 
+				|| __state.IsKeyDown(CONFIG.keyBindings[3].bind) && newstate.IsKeyUp(CONFIG.keyBindings[3].bind)
+				)
+				{
+					if(PLAYER.avatar.shallNotPass())
+					{ 
+					var temp = CONFIG.keyBindings[0].bind;
+					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+					CONFIG.keyBindings[3].bind = temp;
+					temp = CONFIG.keyBindings[1].bind;
+					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+					CONFIG.keyBindings[2].bind = temp;
+					}
+					PLAYER.avatar.shallNotPass(false);
+				}
+			}
+		}
+		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
+		[HarmonyPatch(typeof(Airlock), "tryUse")]
+		public class Airlock_tryUse
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(Airlock __instance, Crew c)
+			{
+				if (__instance.spot != null && c == PLAYER.avatar)
+				{
+
+					if(PLAYER.avatar.shallNotPass())
+					{
+						return false;
+                    }
+					var temp = CONFIG.keyBindings[0].bind;
+					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+					CONFIG.keyBindings[3].bind = temp;
+					temp = CONFIG.keyBindings[1].bind;
+					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+					CONFIG.keyBindings[2].bind = temp;
+					PLAYER.avatar.shallNotPass(true);
+				}
+				return true;
+			}
+		}
+		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
+		[HarmonyPatch(typeof(CrewManager), "murder")]
+		public class CrewManager_murder
+		{
+			[HarmonyPostfix]
+			private static void Postfix(List<byte> ___removal, MicroCosm ___currentCosm)
+			{
+				if(PLAYER.avatar != null && PLAYER.avatar.shallNotPass() && ___removal.Contains(PLAYER.avatar.id) && !___currentCosm.crew.ContainsKey(PLAYER.avatar.id))
+				{ 
+					___currentCosm.crew.TryAdd(PLAYER.avatar.id, PLAYER.avatar);
+				}
+			}
+		}
+
+	}
+	//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
+	public static class CrewExtensions
+	{
+		static readonly ConditionalWeakTable<Crew, ShallNotPassObject> shallnotpass = new ConditionalWeakTable<Crew, ShallNotPassObject>();
+		public static bool shallNotPass(this Crew crew) { return shallnotpass.GetOrCreateValue(crew).Value; }
+
+		public static void shallNotPass(this Crew crew, bool setshallnotpass) { shallnotpass.GetOrCreateValue(crew).Value = setshallnotpass; }
+
+		class ShallNotPassObject
+		{
+			public bool Value = new bool();
+		}
 	}
 }
