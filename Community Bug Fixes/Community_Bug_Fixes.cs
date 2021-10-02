@@ -21,12 +21,47 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+
+		
+		//fixing: Unable to recruit Vaal after conversation with her.
+		[HarmonyPatch(typeof(ValAgent), "finishConvo")]
+		public class ValAgent_finishConvo
+		{
+			[HarmonyPostfix]
+			private static void Postfix(ValAgent __instance, bool ___adopted)
+			{
+				if(___adopted == true)
+				{
+					if (SCREEN_MANAGER.dialogue.removeMe)
+					{
+						__instance.canJoin = true;
+						PLAYER.currentGame.agentTracker.adoptAgent(__instance.name);
+						bool found = false;
+						if (PLAYER.currentGame != null && PLAYER.currentGame.activeQuests != null)
+						{
+							foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
+							{
+								if (triggerEvent.name == "find_crew")
+								{
+									triggerEvent.stage += 1U;
+									found = true;
+								}
+							}
+						}
+						if (CHARACTER_DATA.maxCrew == 0)
+						{
+							PLAYER.currentGame.activeQuests.Add(new CloningReminder(found));
+						}
+					}
+				}
+			}
+		}
+
+
 		//public static TriggerEvent thrown;
 
 		//fixing: monster getting invisible an lagging the game after quiting the game near monsters and reloading (in vanilla some animations fail to instantiate for some reason) 
-		/*
-		 * Obsolete. Fixed in 0.9 Build 26
-		 * 
+
 		[HarmonyPatch(typeof(Monster), "animateMovement")]
 		public class Monster_animateMovement
 		{
@@ -49,7 +84,6 @@ namespace Community_Bug_Fixes
 				return false; //instruction for harmony to supress executing the original method
 			}
 		}
-		*/
 
 		//fixing: game crash on spawning Budds ship. (in vanilla KillBuddQuestRev2.targets is not initiallized on adding values to it )
 		[HarmonyPatch(typeof(KillBuddQuestRev2), "test")]
