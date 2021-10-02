@@ -23,7 +23,7 @@ namespace Community_Bug_Fixes
 
 
 		
-		//fixing: Unable to recruit Vaal after conversation with her.
+		//fixing: Unable to recruit Vaal after conversation with her. (preventing the bug from happening)
 		[HarmonyPatch(typeof(ValAgent), "finishConvo")]
 		public class ValAgent_finishConvo
 		{
@@ -51,6 +51,47 @@ namespace Community_Bug_Fixes
 						if (CHARACTER_DATA.maxCrew == 0)
 						{
 							PLAYER.currentGame.activeQuests.Add(new CloningReminder(found));
+						}
+					}
+				}
+			}
+		}
+
+		//fixing: Unable to recruit Vaal after conversation with her. (fixing already bugged saves)
+		[HarmonyPatch(typeof(AgentTracker), "getBarAgents")] 
+		public class AgentTracker_getBarAgents
+		{
+
+			[HarmonyPrefix]
+			private static void Prefix(AgentTracker __instance, ref List<BarAgentDrawer> __result, ulong stationID, Point grid)
+			{
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+				foreach (NPCAgent npcagent in __instance.allAgents)
+				{
+					if (npcagent.name == "Vaal")
+					{
+						var field = typeof(ValAgent).GetField("adopted", flags);
+						var adopted = (bool)field.GetValue(npcagent);
+						if (!__instance.unlockedFriends.Contains(npcagent) && adopted == true)
+						{
+							npcagent.canJoin = true;
+							__instance.adoptAgent(npcagent.name);
+							bool found = false;
+							if (PLAYER.currentGame != null && PLAYER.currentGame.activeQuests != null)
+							{
+								foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
+								{
+									if (triggerEvent.name == "find_crew")
+									{
+										triggerEvent.stage += 1U;
+										found = true;
+									}
+								}
+							}
+							if (CHARACTER_DATA.maxCrew == 0)
+							{
+								PLAYER.currentGame.activeQuests.Add(new CloningReminder(found));
+							}
 						}
 					}
 				}
