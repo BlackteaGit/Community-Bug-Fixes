@@ -30,7 +30,7 @@ namespace Community_Bug_Fixes
 			[HarmonyPostfix]
 			private static void Postfix(ValAgent __instance, bool ___adopted)
 			{
-				if(___adopted == true)
+				if(___adopted == true && __instance.canJoin == false)
 				{
 					if (SCREEN_MANAGER.dialogue.removeMe)
 					{
@@ -126,7 +126,11 @@ namespace Community_Bug_Fixes
 			}
 		}
 
+
 		//fixing: game crash on spawning Budds ship. (in vanilla KillBuddQuestRev2.targets is not initiallized on adding values to it )
+		/*
+		 * obsolete  (fixed in 0.9.0.07)
+		 * 
 		[HarmonyPatch(typeof(KillBuddQuestRev2), "test")]
 		public class KillBuddQuestRev2_test
 		{
@@ -140,9 +144,9 @@ namespace Community_Bug_Fixes
 						__instance.targets = new List<ulong>();
 					}
 				}	
-			}	
+			}
 		}
-
+		*/
 
 		//In vanilla the exception handling code throws exception itself on removing quests from active list while iterating on it
 		//sadly harmony "finalizer" patch not working for some reason, will think of another way to fix it until it will be fixed in vanilla
@@ -182,6 +186,139 @@ namespace Community_Bug_Fixes
 			}
 		}
 		*/
+
+		/*  TODO in BattleSessionSP.localUpdate()
+		if (ship18 == PLAYER.currentShip)
+				{
+					if (ship18.grid != this.grid && PLAYER.avatar != null && PLAYER.avatar.state != CrewState.dead)
+					{
+						this.allShips.Remove(ship18.id);																	//removing from collection while iterating
+						PLAYER.currentSession = PLAYER.currentWorld.getSession(ship18.grid);
+						PLAYER.currentSession.addLocalShip(ship18, SessionEntry.flyin);
+						this.shareNeighbors(PLAYER.currentSession);
+						this.deportVisitors();
+						if (Math.Abs(ship18.grid.X - this.grid.X) < 2 && Math.Abs(ship18.grid.Y - this.grid.Y) < 2)
+						{
+							Vector2 value4 = Vector2.Zero;
+							for (int j = 0; j< this.neighbors.Length; j++)
+							{
+								if (this.neighbors[j] == PLAYER.currentSession)
+								{
+			value4 = BattleSession.neighborOffsets[j];
+			break;
+		}
+		}
+		Vector2 value5 = PLAYER.currentShip.position;
+		value5 += value4;
+							BattleSessionSP battleSessionSP = PLAYER.currentSession as BattleSessionSP;
+							foreach (Ship ship27 in this.allShips.Values)													//iterating over the same collection again, probably the source of exception: Crash caused by: core game update unhandled exception Collection was modified; enumeration operation may not execute.
+							{
+								if (ship27 != ship18 && ship27.bBox.Intersects(PLAYER.viewableArea) && Vector2.Distance(value5, ship27.position) < 10000f)
+								{
+									this.sessionVisitors.Remove(ship27);
+									battleSessionSP.allShips[ship27.id] = ship27;
+									ship27.position -= value4;
+									if (Math.Abs(ship27.position.X) > 100000f || Math.Abs(ship27.position.Y) > 100000f)
+									{
+										battleSessionSP.sessionVisitors.Add(ship27);
+									}
+									ship27.grid = battleSessionSP.grid;
+									ship27.findHitbox();
+								}
+							}
+
+
+		*/
+
+		//hotfix for missing stations bug in 9.0.0.10
+
+		[HarmonyPatch(typeof(WorldActor), "getStation", new Type[] {})]
+		public class WorldActor_getStation
+		{
+			[HarmonyPostfix]
+			private static void Postfix(WorldActor __instance, ref Station __result)
+			{
+				if (__instance.type == ActorType.station)
+				{
+					Station station = null;
+					if (__instance.top != null)
+					{
+						station = new Station(__instance.top, __instance.bot, __instance.emit, __instance.spec, __instance.bump, __instance.width, __instance.height, __instance.collision);
+						station.data = __instance.data;
+						if (__instance.turrets != null)
+						{
+							station.turrets = __instance.turrets;
+							foreach (Turret turret in station.turrets)
+							{
+								if (turret != null)
+								{
+									turret.ship = station;
+								}
+							}
+						}
+						else
+						{
+							station.turrets = new Turret[0];
+						}
+						uint num = 0U;
+						float num2 = 0f;
+						float num3 = 0f;
+						uint num4 = 0U;
+						uint num5 = 0U;
+						for (int j = 0; j < __instance.top.Length; j++)
+						{
+							if (__instance.bot[j].A > 0)
+							{
+								num += 1U;
+								num2 += num4;
+								num3 += num5;
+							}
+							if (__instance.top[j].A > 0)
+							{
+								num += 1U;
+								num2 += num4;
+								num3 += num5;
+							}
+							num4 += 1U;
+							if ((ulong)num4 == (ulong)((long)__instance.width))
+							{
+								num4 = 0U;
+								num5 += 1U;
+							}
+						}
+						if (num > 0U)
+						{
+							__instance.centerOfMass.X = num2 / num;
+							__instance.centerOfMass.Y = num3 / num;
+						}
+						else
+						{
+							__instance.centerOfMass.X = 0f;
+							__instance.centerOfMass.Y = 0f;
+						}
+						station.setID(__instance.id);
+						station.ownershipHistory = __instance.ownershipHistory;
+						station.setFaction(__instance.faction);
+						station.hackingAvailable = __instance.hackingAvailable;
+						station.findAirlocks();
+						station.artOrigin = __instance.centerOfMass;
+					}
+					if (station != null)
+					{
+						station.position = __instance.position;
+						station.grid = __instance.grid;
+						station.rotationAngle = __instance.rotation;
+						station.docksToPerform = __instance.dockedShips;
+						station.toggleDocking(__instance.dockingActive);
+						CosmMetaData data = __instance.data;
+					}
+					__result = station;
+					return;
+				}
+				__result = null;
+			}
+		}
+
 
 		//fixing game crash when activating not connected console. 
 		[HarmonyPatch(typeof(ConsoleAccess), "activate")]
@@ -288,6 +425,46 @@ namespace Community_Bug_Fixes
 						}
 						opt = "";
 					}			
+				}
+
+				// scraping a ship with cargo get's the cargo deleted (now it will be placed as cargo pods in space instead)
+				if (opt == "Scrap" && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
+				{
+					var ship = ___selected;
+					MicroCosm cosm = PROCESS_REGISTER.getCosm(ship);
+					if (cosm.cargoBays != null && cosm.cargoBays.Count > 0)
+					{
+						for (int j = 0; j < cosm.cargoBays.Count; j++)
+						{
+							if (cosm.cargoBays[j].storage != null)
+							{
+								if (cosm.cargoBays[j].storage.inventory == null)
+								{
+									return;
+								}
+								for (int i = 0; i < cosm.cargoBays[j].storage.inventory.Length; i++)
+								{
+									if (cosm.cargoBays[j].storage.inventory[i] != null)
+									{
+										while (cosm.cargoBays[j].storage.inventory[i] != null)
+										{
+											InventoryItem item = cosm.cargoBays[j].storage.getItem(i);
+											if (item != null)
+											{
+												CargoPod cargoPod = new CargoPod(item, ship.position);
+												CargoPod cargoPod2 = cargoPod;
+												cargoPod2.position.X = cargoPod2.position.X + ((float)(RANDOM.NextDouble() * 100.0) - 50f);
+												CargoPod cargoPod3 = cargoPod;
+												cargoPod3.position.Y = cargoPod3.position.Y + ((float)(RANDOM.NextDouble() * 100.0) - 50f);
+												PLAYER.currentSession.cargo.Add(cargoPod);
+												PLAYER.currentSession.cargoDetection(cargoPod.position, true);
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
