@@ -21,8 +21,24 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		//fixing: Ships at your homebase despawn if you have been absent for a while (now ships no longer despawn if they are docked to your homebase)
+		[HarmonyPatch(typeof(Ship), "mandatoryUpdate")]
+		public class Ship_mandatoryUpdate
+		{
+			[HarmonyPostfix]
+			private static void Postfix(Ship __instance, ref float ___deathTimer)
+			{
+				if (PLAYER.currentGame != null)
+				{ 
+					if (__instance.dockedAt != null && __instance.dockedAt.id == PLAYER.currentGame.homeBaseId && __instance.fadeOutTimer > 0f)
+					{
+						___deathTimer = 0f;
+						__instance.fadeOutTimer = -10f;
+					}
+				}
+			}
+		}
 
-		
 		//fixing: Unable to recruit Vaal after conversation with her. (preventing the bug from happening)
 		[HarmonyPatch(typeof(ValAgent), "finishConvo")]
 		public class ValAgent_finishConvo
@@ -230,8 +246,8 @@ namespace Community_Bug_Fixes
 
 		*/
 
-		//hotfix for missing stations bug in 9.0.0.10
-
+		//hotfix for missing stations bug in 9.0.0.10 (fixed in 9.0.0.11)
+		/* 
 		[HarmonyPatch(typeof(WorldActor), "getStation", new Type[] {})]
 		public class WorldActor_getStation
 		{
@@ -318,7 +334,7 @@ namespace Community_Bug_Fixes
 				__result = null;
 			}
 		}
-
+		*/
 
 		//fixing game crash when activating not connected console. 
 		[HarmonyPatch(typeof(ConsoleAccess), "activate")]
