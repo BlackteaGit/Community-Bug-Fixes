@@ -9,6 +9,8 @@ using WTFModLoader.Manager;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Collections.Concurrent;
+using Module = CoOpSpRpG.Module;
 
 namespace Community_Bug_Fixes
 {
@@ -19,6 +21,396 @@ namespace Community_Bug_Fixes
 		{
 			Harmony harmony = new Harmony("blacktea.Community_Bug_Fixes");
 			harmony.PatchAll();
+		}
+
+
+
+
+
+
+		//fixing bug that prevented spawning Budd and Greg, preventing their quest from completion.
+		//fixing bug that prevented spawning more then 1 crew on some ships.
+
+		[HarmonyPatch(typeof(MicroCosm), "applyData")]
+		public class MicroCosm_applyData
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(MicroCosm __instance, CosmMetaData data, ref float ___crystalTimer)
+			{
+				if (data == null)
+				{
+					return false;
+				}
+				Dictionary<ulong, ulong> dictionary = new Dictionary<ulong, ulong>();
+				if (data.crew != null)
+				{
+					__instance.crew = new ConcurrentDictionary<byte, Crew>();
+					for (int i = 0; i < data.crew.Length; i++)
+					{
+						Crew crew = data.crew[i];
+						if (crew.state != CrewState.dead)
+						{
+							if (!dictionary.ContainsKey(crew.faction))
+							{
+								dictionary[crew.faction] = 1UL;
+							}
+							else
+							{
+								Dictionary<ulong, ulong> dictionary2 = dictionary;
+								ulong num = crew.faction;
+								ulong num2 = dictionary2[num];
+								dictionary2[num] = num2 + 1UL;
+							}
+						}
+						crew.currentCosm = __instance;
+						crew.id = __instance.nextCrewId;
+						__instance.nextCrewId += 1;
+						/*
+						if (crew.id <= __instance.nextCrewId)
+						{
+							__instance.nextCrewId = (byte)(crew.id + 1);
+						}
+						*/
+						__instance.crew[crew.id] = crew;
+						crew.goalFailed();
+					}
+				}
+				if (data.unplacedCrew != null)
+				{
+					for (int j = 0; j < data.unplacedCrew.Length; j++)
+					{
+						Crew crew2 = data.unplacedCrew[j];
+						int num3 = __instance.randomWalkableTile();
+						if (num3 == -1)
+						{
+							break;
+						}
+						crew2.position = __instance.walkingLocation(__instance.tiles[num3].botRight.index);
+						if (!dictionary.ContainsKey(crew2.faction))
+						{
+							dictionary[crew2.faction] = 1UL;
+						}
+						else
+						{
+							Dictionary<ulong, ulong> dictionary3 = dictionary;
+							ulong num2 = crew2.faction;
+							ulong num = dictionary3[num2];
+							dictionary3[num2] = num + 1UL;
+						}
+						crew2.currentCosm = __instance;
+						crew2.id = __instance.nextCrewId;
+						__instance.nextCrewId += 1;
+						/*
+						if (crew2.id <= __instance.nextCrewId)
+						{
+							__instance.nextCrewId = (byte)(crew2.id + 1);
+						}
+						*/
+						__instance.crew[crew2.id] = crew2;
+						crew2.goalFailed();
+					}
+				}
+				if (dictionary.Count > 0)
+				{
+					ulong faction = __instance.ship.id;
+					ulong num4 = 0UL;
+					foreach (ulong num5 in dictionary.Keys)
+					{
+						if (dictionary[num5] > num4)
+						{
+							faction = num5;
+							num4 = dictionary[num5];
+						}
+					}
+					__instance.ship.faction = faction;
+				}
+				__instance.manager = new CrewManager(__instance, __instance.crew);
+				if (data.moduleData != null && data.moduleData.Length == __instance.modules.Count)
+				{
+					for (int k = 0; k < data.moduleData.Length; k++)
+					{
+						if (data.moduleData[k] != null)
+						{
+							try
+							{
+								__instance.modules[k].setData(data.moduleData[k]);
+							}
+							catch
+							{
+							}
+						}
+					}
+				}
+				if (data.monsters != null)
+				{
+					if (__instance.monsters == null)
+					{
+						__instance.monsters = data.monsters;
+					}
+					else
+					{
+						foreach (Monster item in data.monsters)
+						{
+							__instance.monsters.Add(item);
+						}
+					}
+					foreach (Monster monster in __instance.monsters)
+					{
+						if (!monster.spawned || (data.ticks > 3600f && monster.speed > 0f))
+						{
+							monster.spawned = true;
+							int num6 = __instance.randomWalkableTile();
+							if (num6 == -1)
+							{
+								__instance.monsters = null;
+								break;
+							}
+							monster.position = __instance.walkingLocation(__instance.tiles[num6].botRight.index);
+							if (__instance.portals != null)
+							{
+								InsideDockSpot[] array = __instance.portals;
+								for (int l = 0; l < array.Length; l++)
+								{
+									if (Vector2.Distance(array[l].drawLoc, monster.position) < monster.detectRange)
+									{
+										num6 = __instance.randomWalkableTile();
+										monster.position = __instance.walkingLocation(__instance.tiles[num6].botRight.index);
+										break;
+									}
+								}
+							}
+							if (__instance.portals != null)
+							{
+								InsideDockSpot[] array = __instance.portals;
+								for (int l = 0; l < array.Length; l++)
+								{
+									if (Vector2.Distance(array[l].drawLoc, monster.position) < monster.detectRange)
+									{
+										num6 = __instance.randomWalkableTile();
+										monster.position = __instance.walkingLocation(__instance.tiles[num6].botRight.index);
+										break;
+									}
+								}
+							}
+							monster.spawnLocation = monster.position;
+						}
+					}
+				}
+				if (data.crystals != null)
+				{
+					__instance.crystals = data.crystals;
+				}
+				___crystalTimer = data.ticks;
+				if (data.air != null)
+				{
+					for (int m = 0; m < __instance.tiles.Length; m++)
+					{
+						__instance.tiles[m].air = data.air[m];
+					}
+				}
+				if (data.reactorHeat != null)
+				{
+					int num7 = 0;
+					foreach (CoOpSpRpG.Module module in __instance.modules)
+					{
+						if (module.type == ModuleType.reactor)
+						{
+							(module as Reactor).heat = data.reactorHeat[num7];
+							num7++;
+						}
+					}
+				}
+				float num8 = 0.19999701f;
+				for (float num9 = 0f; num9 < data.ticks; num9 += num8)
+				{
+					__instance.dissopateHeat(0.2f);
+				}
+				if (data.missiles != null)
+				{
+					int num10 = 0;
+					foreach (CoOpSpRpG.Module module2 in __instance.modules)
+					{
+						if (module2.type == ModuleType.launcher)
+						{
+							if (data.missiles[num10] != null)
+							{
+								(module2 as Launcher).tube.Enqueue(data.missiles[num10]);
+							}
+							num10++;
+						}
+						if (module2.type == ModuleType.missile_magazine)
+						{
+							(module2 as MissileMagazine).missile = data.missiles[num10];
+							num10++;
+						}
+					}
+				}
+				__instance.missileType = data.missileType;
+				if (data.reload)
+				{
+					__instance.rearm = true;
+				}
+				__instance.flickerOverride = data.flickering;
+				data.reload = false;
+				if (data.addCrystals > 0 && PLAYER.currentGame != null)
+				{
+					List<int> list = new List<int>();
+					for (int n = 0; n < __instance.bot.Length; n++)
+					{
+						if (__instance.bot[n].R == 33 && __instance.bot[n].G == 19 && __instance.bot[n].B == 11)
+						{
+							list.Add(n);
+						}
+					}
+					int num11 = Math.Min(list.Count, data.addCrystals);
+					for (int num12 = 0; num12 < num11; num12++)
+					{
+						int num13 = list[RANDOM.Next(list.Count)];
+						Vector2 spot = new Vector2((float)(16 * (num13 % __instance.width)), (float)(16 * (num13 / __instance.width)));
+						__instance.crystals.Add(new CrystalMonster(spot));
+					}
+				}
+				int num14 = 0;
+				if (data.storage != null && data.storage.Length != 0)
+				{
+					List<InventoryItem> list2 = new List<InventoryItem>();
+					if (data.loot != null)
+					{
+						foreach (InventoryItem item2 in data.loot)
+						{
+							list2.Add(item2);
+						}
+					}
+					foreach (Module module3 in __instance.modules)
+					{
+						if (module3.type == ModuleType.cargo_bay)
+						{
+							CargoBay cargoBay = module3 as CargoBay;
+							if (data.storage[num14] != null && data.storage[num14].inventory != null)
+							{
+								if (cargoBay.functioning)
+								{
+									cargoBay.storage = data.storage[num14];
+								}
+								else
+								{
+									foreach (InventoryItem inventoryItem in data.storage[num14].inventory)
+									{
+										if (inventoryItem != null)
+										{
+											list2.Add(inventoryItem);
+										}
+									}
+								}
+							}
+							num14++;
+							if (data.storage != null && num14 >= data.storage.Length)
+							{
+								break;
+							}
+						}
+					}
+					if (list2.Count > 0)
+					{
+						List<CargoBay> list3 = new List<CargoBay>();
+						foreach (Module module4 in __instance.modules)
+						{
+							if (module4.type == ModuleType.cargo_bay)
+							{
+								list3.Add(module4 as CargoBay);
+							}
+						}
+						RANDOM.shuffle<CargoBay>(ref list3);
+						foreach (CargoBay cargoBay2 in list3)
+						{
+							if (cargoBay2.functioning && cargoBay2.storage != null)
+							{
+								while (list2.Count > 0)
+								{
+									InventoryItem item3 = list2.First<InventoryItem>();
+									if (!cargoBay2.storage.placeInFirstSlot(item3))
+									{
+										break;
+									}
+									list2.Remove(item3);
+								}
+							}
+						}
+						list2.Clear();
+					}
+				}
+				if (data.systemsData != null)
+				{
+					int num15 = 0;
+					foreach (TacticalSystem tacticalSystem in __instance.systems)
+					{
+						TacticalSystem tacticalSystem2 = tacticalSystem as TacticalSystem;
+						if (data.systemsData[num15] != null)
+						{
+							tacticalSystem2.readData(data.systemsData[num15]);
+						}
+						num15++;
+					}
+				}
+				if (data.routeLists != null)
+				{
+					foreach (EngineeringRoom engineeringRoom in __instance.engineeringRooms)
+					{
+						for (int num16 = 0; num16 < engineeringRoom.routeCount; num16++)
+						{
+							try
+							{
+								if (engineeringRoom.pointLists == null)
+								{
+									engineeringRoom.pointLists = new List<List<Point>[]>();
+								}
+								if (data.routeLists[0] == null)
+								{
+									engineeringRoom.pointLists.Add(new List<Point>[3]);
+								}
+								else
+								{
+									engineeringRoom.pointLists.Add(data.routeLists[0]);
+								}
+								data.routeLists.RemoveAt(0);
+								engineeringRoom.configure();
+							}
+							catch
+							{
+								break;
+							}
+						}
+					}
+				}
+				num14 = 0;
+				if (data.artifacts != null)
+				{
+					foreach (Module module5 in __instance.modules)
+					{
+						if (module5.type == ModuleType.artifact_activator)
+						{
+							ArtifactActivator artifactActivator = module5 as ArtifactActivator;
+							if (data.artifacts[num14] != null && data.artifacts[num14].inventory != null && artifactActivator.functioning)
+							{
+								artifactActivator.storage = data.artifacts[num14];
+							}
+							num14++;
+							if (num14 >= data.artifacts.Length)
+							{
+								break;
+							}
+						}
+					}
+				}
+				if (data.goo != null && data.goo.Length == __instance.modules.Count)
+				{
+					for (int num17 = 0; num17 < __instance.modules.Count; num17++)
+					{
+						__instance.modules[num17].goo = data.goo[num17];
+					}
+				}
+				return false; //instruction for harmony to supress executing the original method
+			}
 		}
 
 		//fixing: Ships at your homebase despawn if you have been absent for a while (now ships no longer despawn if they are docked to your homebase)
@@ -614,6 +1006,233 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
+
+
+
+		/*
+		[HarmonyPatch(typeof(PirateFactionRev2), "updateFlotillas")]
+		public class PirateFactionRev2_updateFlotillas
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(PirateFactionRev2 __instance, Dictionary<ulong, List<Point>> ___specialFlotillas, List<ulong> ___flotillas, List<Point> ___redZone, List<Point> ___yellowZone)
+			{
+				foreach (ulong key in ___specialFlotillas.Keys)
+				{
+					if (!__instance.ships.ContainsKey(key))
+					{
+						___specialFlotillas.Remove(key);
+						break;
+					}
+					if (__instance.ships[key].isAtDestination)
+					{
+						List<Point> list = ___specialFlotillas[key];
+						Point g = list[RANDOM.Next(list.Count)];
+						__instance.ships[key].patrolToGridRandom(g);
+					}
+				}
+				foreach (ulong num in ___flotillas)
+				{
+					if (__instance.ships.ContainsKey(num))
+					{
+						if (__instance.ships[num].isAtDestination)
+						{
+							Point grid = __instance.ships[num].grid;
+							Point g2 = grid;
+							if (RANDOM.Next(5) == 0)
+							{
+								int num2 = RANDOM.Next(2);
+								if (num2 != 0)
+								{
+									if (num2 == 1)
+									{
+										g2 = ___yellowZone[RANDOM.Next(___yellowZone.Count)];
+									}
+								}
+								else
+								{
+									g2 = ___redZone[RANDOM.Next(___redZone.Count)];
+								}
+							}
+							else
+							{
+								if (___redZone.Contains(grid))
+								{
+									g2 = ___redZone[RANDOM.Next(___redZone.Count)];
+								}
+								if (___yellowZone.Contains(grid))
+								{
+									g2 = ___yellowZone[RANDOM.Next(___yellowZone.Count)];
+								}
+								if (___redZone.Contains(grid))
+								{
+									g2 = ___redZone[RANDOM.Next(___redZone.Count)];
+								}
+								g2.X -= 8;
+								g2.X += RANDOM.Next(17);
+								g2.Y -= 8;
+								g2.Y += RANDOM.Next(17);
+							}
+							__instance.ships[num].patrolToGridRandom(g2);
+						}
+					}
+					else
+					{
+						___flotillas.Remove(num);
+						break;
+					}
+				}
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+
+		[HarmonyPatch(typeof(FreelancerFactionRev2), "updateFlotillas")]
+		public class FreelancerFactionRev2_updateFlotillas
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(FreelancerFactionRev2 __instance, Dictionary<ulong, List<Point>> ___specialFlotillas, List<ulong> ___flotillas, List<Point> ___redZone, List<Point> ___yellowZone, List<Point> ___greyZone)
+			{
+				foreach (ulong key in ___specialFlotillas.Keys)
+				{
+					if (!__instance.ships.ContainsKey(key))
+					{
+						___specialFlotillas.Remove(key);
+						break;
+					}
+					else if (__instance.ships[key].isAtDestination)
+					{
+						List<Point> list = ___specialFlotillas[key];
+						Point g = list[RANDOM.Next(list.Count)];
+						__instance.ships[key].patrolToGridRandom(g);
+					}
+				}
+				foreach (ulong num in ___flotillas)
+				{
+					if (__instance.ships.ContainsKey(num))
+					{
+						if (__instance.ships[num].isAtDestination)
+						{
+							Point grid = __instance.ships[num].grid;
+							Point g2 = grid;
+							if (RANDOM.Next(5) == 0)
+							{
+								int num2 = RANDOM.Next(2);
+								if (num2 != 0)
+								{
+									if (num2 == 1)
+									{
+										g2 = ___yellowZone[RANDOM.Next(___yellowZone.Count)];
+									}
+								}
+								else
+								{
+									g2 = ___greyZone[RANDOM.Next(___greyZone.Count)];
+								}
+							}
+							else
+							{
+								if (___greyZone.Contains(grid))
+								{
+									g2 = ___greyZone[RANDOM.Next(___greyZone.Count)];
+								}
+								if (___yellowZone.Contains(grid))
+								{
+									g2 = ___yellowZone[RANDOM.Next(___yellowZone.Count)];
+								}
+								if (___redZone.Contains(grid))
+								{
+									g2 = ___redZone[RANDOM.Next(___redZone.Count)];
+								}
+								g2.X -= 8;
+								g2.X += RANDOM.Next(17);
+								g2.Y -= 8;
+								g2.Y += RANDOM.Next(17);
+							}
+							__instance.ships[num].patrolToGridRandom(g2);
+						}
+					}
+					else
+					{
+						___flotillas.Remove(num);
+						break;
+					}
+				}
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+
+		[HarmonyPatch(typeof(SSCFactionRev2), "updateFlotillas")]
+		public class SSCFactionRev2_updateFlotillas
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(SSCFactionRev2 __instance, Dictionary<ulong, List<Point>> ___specialFlotillas, List<ulong> ___flotillas, List<Point> ___asteroidSpots, List<Point> ___spawnSpots)
+			{
+				foreach (ulong key in ___specialFlotillas.Keys)
+				{
+					if (!__instance.ships.ContainsKey(key))
+					{
+						___specialFlotillas.Remove(key);
+						break;
+					}
+					else if (__instance.ships[key].isAtDestination)
+					{
+						List<Point> list = ___specialFlotillas[key];
+						Point g = list[RANDOM.Next(list.Count)];
+						__instance.ships[key].patrolToGridRandom(g);
+					}
+				}
+				foreach (ulong num in ___flotillas)
+				{
+					if (__instance.ships.ContainsKey(num))
+					{
+						if (__instance.ships[num].isAtDestination)
+						{
+							Point grid = __instance.ships[num].grid;
+							Point g2 = grid;
+							if (RANDOM.Next(5) == 0)
+							{
+								int num2 = RANDOM.Next(2);
+								if (num2 != 0)
+								{
+									if (num2 == 1)
+									{
+										g2 = ___asteroidSpots[RANDOM.Next(___asteroidSpots.Count)];
+									}
+								}
+								else
+								{
+									g2 = ___spawnSpots[RANDOM.Next(___spawnSpots.Count)];
+								}
+							}
+							else
+							{
+								if (___spawnSpots.Contains(grid))
+								{
+									g2 = ___spawnSpots[RANDOM.Next(___spawnSpots.Count)];
+								}
+								if (___asteroidSpots.Contains(grid))
+								{
+									g2 = ___asteroidSpots[RANDOM.Next(___asteroidSpots.Count)];
+								}
+								g2.X -= 8;
+								g2.X += RANDOM.Next(17);
+								g2.Y -= 8;
+								g2.Y += RANDOM.Next(17);
+							}
+							__instance.ships[num].patrolToGridRandom(g2);
+						}
+					}
+					else
+					{
+						___flotillas.Remove(num);
+						break;
+					}
+				}
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+		*/
+
+
 
 	}
 	//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
