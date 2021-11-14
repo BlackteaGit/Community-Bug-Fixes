@@ -25,7 +25,31 @@ namespace Community_Bug_Fixes
 
 
 
+		//fixing: bug that prevented quest completion dialogue after killing Greg
+		[HarmonyPatch]
+		public class GaryVsGregRev2_test
+		{
+			static MethodBase TargetMethod()
+			{
+				var type = AccessTools.TypeByName("CoOpSpRpG.GaryVsGregRev2");
+				return AccessTools.Method(type, "test");
+			}
+			[HarmonyPostfix]
+			private static void GaryVsGregRev2_test_Postfix(TriggerEvent __instance, ref DialogueSelectRev2 ___dialogue, ref uint ___stage)
+			{
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
 
+				if (___dialogue != null && ___dialogue.removeMe)
+				{
+					if (___stage == 4U && SCREEN_MANAGER.dialogue == null)
+					{
+						___stage = 5U;
+						typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2").GetMethod("doFinishConvo", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
+					}
+				}
+				return;
+			}
+		}
 
 
 		//fixing bug that prevented spawning Budd and Greg, preventing their quest from completion.
@@ -211,7 +235,7 @@ namespace Community_Bug_Fixes
 				if (data.reactorHeat != null)
 				{
 					int num7 = 0;
-					foreach (CoOpSpRpG.Module module in __instance.modules)
+					foreach (Module module in __instance.modules)
 					{
 						if (module.type == ModuleType.reactor)
 						{
@@ -228,7 +252,7 @@ namespace Community_Bug_Fixes
 				if (data.missiles != null)
 				{
 					int num10 = 0;
-					foreach (CoOpSpRpG.Module module2 in __instance.modules)
+					foreach (Module module2 in __instance.modules)
 					{
 						if (module2.type == ModuleType.launcher)
 						{
@@ -1009,7 +1033,7 @@ namespace Community_Bug_Fixes
 
 
 
-		/*
+		
 		[HarmonyPatch(typeof(PirateFactionRev2), "updateFlotillas")]
 		public class PirateFactionRev2_updateFlotillas
 		{
@@ -1230,7 +1254,7 @@ namespace Community_Bug_Fixes
 				return false; //instruction for harmony to supress executing the original method
 			}
 		}
-		*/
+		
 
 
 
