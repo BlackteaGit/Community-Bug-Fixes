@@ -8,6 +8,9 @@ using WTFModLoader;
 using WTFModLoader.Manager;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.IO;
+using System.Data.SQLite;
+using System.Data;
 
 namespace Community_Bug_Fixes
 {
@@ -20,6 +23,344 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(SSCMegaFortQuest), "spawnBoss")]
+		public class SSCMegaFortQuest_spawnBoss
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(SSCMegaFortQuest __instance, ref bool __result, CallFunctionStage stage, Point ___grid, Vector2 ___position, ref ulong ___targetID, ref bool ___bossKilled)
+			{
+				WorldActor worldActor = new WorldActor(111, 3UL, ___position, 1f);
+				worldActor.grid = ___grid;
+				ulong uid = PLAYER.currentWorld.getUID();
+				worldActor.id = uid;
+				worldActor.data = new CosmMetaData();
+				worldActor.data.crew = new Crew[0];
+				worldActor.dominantTeam = new CrewTeam();
+				worldActor.dominantTeam.ownedShip = uid;
+				worldActor.dominantTeam.threats.Add(CONFIG.playerFaction);
+				worldActor.dominantTeam.goalType = ConsoleGoalType.kill_enemies;
+				worldActor.dominantTeam.aggroRadius = 8000f;
+				worldActor.crewOutfitQuality = 30f;
+				for (int j = 0; j < 12; j++)
+				{
+					Crew crew3 = new Crew();
+					crew3.id = (byte)(j);
+					crew3.outfit(18f, 15f);
+					crew3.faction = 3UL;
+					crew3.factionless = false;
+					crew3.team = worldActor.dominantTeam;
+					worldActor.data.addCrew(crew3);
+				}
+				worldActor.data.buildStorage(worldActor);
+				if (worldActor.data.storage != null)
+				{
+					for (int j = 0; j < 800; j++)
+					{
+						worldActor.data.addItem(new InventoryItem(InventoryItemType.grey_goo));
+					}
+				}
+				___targetID = worldActor.id;
+				if (__instance.targets == null)
+				{
+					__instance.targets = new List<ulong>();
+				}
+				__instance.targets.Add(worldActor.id);
+				___bossKilled = false;
+				PLAYER.currentWorld.spawnActor(worldActor);
+				stage.nextStage = null;
+				__result = false;
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(SSCMegaFortQuest), "test")]
+		public class SSCMegaFortQuest_test
+		{
+			[HarmonyPostfix]
+			private static void Postfix(SSCMegaFortQuest __instance, Point ___grid, Vector2 ___position, ulong ___targetID,ref bool ___bossKilled)
+			{
+				if (__instance.stage == 0)
+				{
+					__instance.currentStage = __instance.allStages[1];
+				}				
+				if (__instance.stage == 2 && PLAYER.currentSession.grid == ___grid && ___targetID != 0UL && (!PLAYER.currentSession.allShips.ContainsKey(___targetID) || (PLAYER.currentSession.allShips.ContainsKey(___targetID) && (PLAYER.currentSession.allShips[___targetID].cosm?.crew == null || (PLAYER.currentSession.allShips[___targetID].cosm?.crew != null && PLAYER.currentSession.allShips[___targetID].cosm.crew.IsEmpty)))))
+				{
+					___bossKilled = true;
+				}
+
+			}
+		}
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(SSCMegaFortQuest), "clearEventSubscriptions")]
+		public class SSCMegaFortQuest_clearEventSubscriptions
+		{
+			[HarmonyPostfix]
+			private static void Postfix(SSCMegaFortQuest __instance)
+			{
+				__instance.targets = null;
+			}
+		}
+
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(MissileBossQuest), "spawnBoss")]
+		public class MissileBossQuest_spawnBoss
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(MissileBossQuest __instance, ref bool __result, CallFunctionStage stage, Point ___grid, Vector2 ___position, ref ulong ___targetID, ref bool ___bossKilled)
+			{
+				WorldActor worldActor = new WorldActor(91, 3UL, ___position, 1f);
+				worldActor.grid = ___grid;
+				ulong uid = PLAYER.currentWorld.getUID();
+				worldActor.id = uid;
+				worldActor.data = new CosmMetaData();
+				worldActor.data.crew = new Crew[0];
+				worldActor.dominantTeam = new CrewTeam();
+				worldActor.dominantTeam.ownedShip = uid;
+				worldActor.dominantTeam.threats.Add(CONFIG.playerFaction);
+				worldActor.dominantTeam.goalType = ConsoleGoalType.kill_enemies;
+				worldActor.dominantTeam.aggroRadius = 8000f;
+				worldActor.crewOutfitQuality = 26f;
+				for (int j = 0; j < 10; j++)
+				{
+					Crew crew3 = new Crew();
+					crew3.id = (byte)(j);
+					crew3.outfit(18f, 15f);
+					crew3.faction = 3UL;
+					crew3.factionless = false;
+					crew3.team = worldActor.dominantTeam;
+					worldActor.data.addCrew(crew3);
+				}
+				worldActor.data.buildStorage(worldActor);
+				if (worldActor.data.storage != null)
+				{
+					for (int j = 0; j < 800; j++)
+					{
+						worldActor.data.addItem(new InventoryItem(InventoryItemType.grey_goo));
+					}
+				}
+				___targetID = worldActor.id;
+				if (__instance.targets == null)
+				{
+					__instance.targets = new List<ulong>();
+				}
+				__instance.targets.Add(worldActor.id);
+				___bossKilled = false;
+				PLAYER.currentWorld.spawnActor(worldActor);
+				stage.nextStage = null;
+				__result = false;
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(MissileBossQuest), "test")]
+		public class MissileBossQuest_test
+		{
+			[HarmonyPostfix]
+			private static void Postfix(MissileBossQuest __instance, Point ___grid, Vector2 ___position, ulong ___targetID,ref bool ___bossKilled)
+			{
+				if (__instance.stage == 0)
+				{
+					__instance.currentStage = __instance.allStages[1];
+				}
+				if (__instance.stage == 2 && PLAYER.currentSession.grid == ___grid && ___targetID != 0UL && (!PLAYER.currentSession.allShips.ContainsKey(___targetID) || (PLAYER.currentSession.allShips.ContainsKey(___targetID) && (PLAYER.currentSession.allShips[___targetID].cosm?.crew == null || (PLAYER.currentSession.allShips[___targetID].cosm?.crew != null && PLAYER.currentSession.allShips[___targetID].cosm.crew.IsEmpty)))))
+				{
+					___bossKilled = true;
+				}
+			}
+		}
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(MissileBossQuest), "clearEventSubscriptions")]
+		public class MissileBossQuest_clearEventSubscriptions
+		{
+			[HarmonyPostfix]
+			private static void Postfix(MissileBossQuest __instance)
+			{
+				__instance.targets = null;
+			}
+		}
+
+
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(DroneBossQuest), "spawnBoss")]
+		public class DroneBossQuest_spawnBoss
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(DroneBossQuest __instance, ref bool __result, CallFunctionStage stage, Point ___grid, Vector2 ___position, ref ulong ___targetID, ref bool ___bossKilled)
+			{
+				WorldActor worldActor = new WorldActor(106, 3UL, ___position, 1f);
+				worldActor.grid = ___grid;
+				ulong uid = PLAYER.currentWorld.getUID();
+				worldActor.id = uid;
+				worldActor.data = new CosmMetaData();
+				worldActor.data.crew = new Crew[0];
+				worldActor.dominantTeam = new CrewTeam();
+				worldActor.dominantTeam.ownedShip = uid;
+				worldActor.dominantTeam.threats.Add(CONFIG.playerFaction);
+				worldActor.dominantTeam.goalType = ConsoleGoalType.kill_enemies;
+				worldActor.dominantTeam.aggroRadius = 8000f;
+				worldActor.crewOutfitQuality = 28f;
+				for (int j = 0; j < 10; j++)
+				{
+					Crew crew3 = new Crew();
+					crew3.id = (byte)(j);
+					crew3.outfit(18f, 15f);
+					crew3.faction = 3UL;
+					crew3.factionless = false;
+					crew3.team = worldActor.dominantTeam;
+					worldActor.data.addCrew(crew3);
+				}
+				___targetID = worldActor.id;
+				if (__instance.targets == null)
+				{
+					__instance.targets = new List<ulong>();
+				}
+				__instance.targets.Add(worldActor.id);
+				___bossKilled = false;
+				PLAYER.currentWorld.spawnActor(worldActor);
+				stage.nextStage = null;
+				__result = false;
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(DroneBossQuest), "test")]
+		public class DroneBossQuest_test
+		{
+			[HarmonyPostfix]
+			private static void Postfix(DroneBossQuest __instance, Point ___grid, Vector2 ___position, ulong ___targetID, ref bool ___bossKilled)
+			{
+				if (__instance.stage == 0)
+				{
+					__instance.currentStage = __instance.allStages[1];
+				}
+				if (__instance.stage == 2 && PLAYER.currentSession.grid == ___grid && ___targetID != 0UL && (!PLAYER.currentSession.allShips.ContainsKey(___targetID) || (PLAYER.currentSession.allShips.ContainsKey(___targetID) && (PLAYER.currentSession.allShips[___targetID].cosm?.crew == null || (PLAYER.currentSession.allShips[___targetID].cosm?.crew != null && PLAYER.currentSession.allShips[___targetID].cosm.crew.IsEmpty)))))
+				{
+					___bossKilled = true;
+				}
+			}
+		}
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(DroneBossQuest), "clearEventSubscriptions")]
+		public class DroneBossQuest_clearEventSubscriptions
+		{
+			[HarmonyPostfix]
+			private static void Postfix(DroneBossQuest __instance)
+			{
+				__instance.targets = null;
+			}
+		}
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(SiegeQuest), "buildStages")]
+		public class SiegeQuest_buildStages
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(SiegeQuest __instance, uint stage)
+			{
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+				__instance.allStages = new QuestStage[9];
+				__instance.allStages[0] = new CallFunctionStage(new CallFunctionStage.CallFunctionStageFunction(__instance.spawnSSCFleetStage));
+				__instance.allStages[1] = new WaitSecondsStage(30f);
+				//__instance.allStages[2] = new DoConvoStage(__instance.helpCallDialogue());
+				__instance.allStages[2] = new DoConvoStage(new DoConvoStage.DialogueCreationFunc(() => typeof(SiegeQuest).GetMethod("helpCallDialogue", flags, null, Type.EmptyTypes, null).Invoke(__instance, null) as DialogueSelectRev2));
+				__instance.allStages[3] = new WaitSecondsStage(0.5f);
+				//__instance.allStages[4] = new DoConvoStage(__instance.oneFollowUp());
+				__instance.allStages[4] = new DoConvoStage(new DoConvoStage.DialogueCreationFunc(() => typeof(SiegeQuest).GetMethod("oneFollowUp", flags, null, Type.EmptyTypes, null).Invoke(__instance, null) as DialogueSelectRev2));
+				__instance.allStages[5] = new CallFunctionStage(new CallFunctionStage.CallFunctionStageFunction(__instance.addOtherQuestStage));
+				__instance.allStages[6] = new CallFunctionStage(new CallFunctionStage.CallFunctionStageFunction(__instance.waitForAllDeadStage));
+				__instance.allStages[6].tip = new ToolTip();
+				__instance.allStages[6].tip.tip = "End the siege";
+				__instance.allStages[6].tip.description = "The SSC is laying siege to pirate's cove with a number of large warships. Well what are you waiting for? Go blow them up!";
+				//__instance.tipStat = (__instance.allStages[8].tip.addStat("Ships destroyed", "", false) as TipStatSmall);
+				typeof(SiegeQuest).GetField("tipStat", flags).SetValue(__instance, (__instance.allStages[6].tip.addStat("Ships destroyed", "", false) as TipStatSmall));
+				//__instance.allStages[7] = new DoConvoStage(__instance.finishDialogue());
+				__instance.allStages[7] = new DoConvoStage(new DoConvoStage.DialogueCreationFunc(() => typeof(SiegeQuest).GetMethod("finishDialogue", flags, null, Type.EmptyTypes, null).Invoke(__instance, null) as DialogueSelectRev2));
+				__instance.allStages[8] = new CallFunctionStage(new CallFunctionStage.CallFunctionStageFunction(__instance.giveRewardStage));
+				uint num = 0U;
+				while ((ulong)num < (ulong)((long)__instance.allStages.Length))
+				{
+					__instance.allStages[(int)num].stage = num;
+					num += 1U;
+				}
+				__instance.currentStage = __instance.allStages[(int)stage];
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(SiegeQuest), "spawnSSCFleetStage")]
+		public class SiegeQuest_spawnSSCFleetStage
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(ref bool __result, CallFunctionStage stage, ref Point ___grid, List<ulong> ___enemies)
+			{
+				FriendlyPirateFaction friendlyPirateFaction = null;
+				foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
+				{
+					if (factionControllerRev.GetType() == typeof(FriendlyPirateFaction))
+					{
+						friendlyPirateFaction = (factionControllerRev as FriendlyPirateFaction);
+					}
+				}
+				___grid = friendlyPirateFaction.homeGrid;
+				foreach (Vector2 vector in friendlyPirateFaction.siegePoints)
+				{
+					WorldActor worldActor = new WorldActor(68, 3UL, vector, 1f);
+					worldActor.grid = friendlyPirateFaction.homeGrid;
+					ulong uid = PLAYER.currentWorld.getUID();
+					worldActor.data = new CosmMetaData();
+					worldActor.data.crew = new Crew[0];
+					worldActor.id = uid;
+					worldActor.dominantTeam = new CrewTeam();
+					worldActor.dominantTeam.ownedShip = uid;
+					worldActor.dominantTeam.goalType = ConsoleGoalType.patrol;
+					worldActor.dominantTeam.destinationGrid = friendlyPirateFaction.homeGrid;
+					worldActor.dominantTeam.destination = vector;
+					for (int j = 0; j < 4; j++)
+					{
+						Crew crew3 = new Crew();
+						crew3.id = (byte)(j);
+						crew3.outfit(18f, 15f);
+						crew3.faction = 3UL;
+						crew3.factionless = false;
+						crew3.team = worldActor.dominantTeam;
+						worldActor.data.addCrew(crew3);
+					}
+					___enemies.Add(worldActor.id);
+					PLAYER.currentWorld.spawnActor(worldActor);
+				}
+				stage.nextStage = null;
+				__result = false;
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+
+		//fixing: quest logic for all of the main questline after killing Budd
+		[HarmonyPatch(typeof(CHARACTER_DATA), "addLog")]
+		public class CHARACTER_DATA_addLog
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(LogEntryRev2 log)
+			{
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+				SQLiteCommand sqliteCommand = new SQLiteCommand("insert or replace into logs (name, path, title, description) values ('" + CHARACTER_DATA.selected + "', @path, @title, @description)", typeof(CHARACTER_DATA).GetField("dBCon", flags).GetValue(null) as SQLiteConnection);
+				sqliteCommand.Parameters.Add("@path", DbType.String, 32).Value = log.file;
+				sqliteCommand.Parameters.Add("@title", DbType.String, 32).Value = log.name;
+				sqliteCommand.Parameters.Add("@description", DbType.String, 32).Value = log.description;
+				sqliteCommand.ExecuteNonQuery();
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
 
 
 		//fixing: bug that prevented quest completion dialogue after killing Greg
@@ -110,6 +451,14 @@ namespace Community_Bug_Fixes
 								crew3.team = worldActor.dominantTeam;
 								worldActor.data.addCrew(crew3);
 							}
+							worldActor.data.buildStorage(worldActor);
+							if (worldActor.data.storage != null)
+							{
+								for (int j = 0; j < 500; j++)
+								{
+									worldActor.data.addItem(new InventoryItem(InventoryItemType.grey_goo));
+								}
+							}
 							Ship ship = worldActor.getShip(0);
 							if (PLAYER.currentShip != null)
 							{
@@ -119,6 +468,7 @@ namespace Community_Bug_Fixes
 							SCREEN_MANAGER.widgetChat.AddMessage("Budd ship has arrived!", MessageTarget.Command);
 							PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
 							ship.cosm.init();
+							ship.cosm.rearm = true;
 							foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
 							{
 								if (triggerEvent.GetType() == typeof(KillBuddQuestRev2))
