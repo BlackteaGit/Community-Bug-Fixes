@@ -89,7 +89,7 @@ namespace Community_Bug_Fixes
 			[HarmonyPrefix]
 			private static bool Prefix(Crew __instance, ModTile doIt)
 			{
-				if (__instance.isPlayer)
+				if (__instance.isPlayer || (__instance.currentCosm != null && __instance.currentCosm.isStation))
 				{
 					return true;
 				}
