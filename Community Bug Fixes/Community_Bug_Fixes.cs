@@ -11,6 +11,7 @@ using System.Runtime.CompilerServices;
 using System.IO;
 using System.Data.SQLite;
 using System.Data;
+using Module = CoOpSpRpG.Module;
 
 namespace Community_Bug_Fixes
 {
@@ -21,6 +22,112 @@ namespace Community_Bug_Fixes
 		{
 			Harmony harmony = new Harmony("blacktea.Community_Bug_Fixes");
 			harmony.PatchAll();
+		}
+
+		//crew on NPC ships will now reload missile factories with grey goo if they have any in their inventory
+		[HarmonyPatch(typeof(CrewManager), "checkConsoles")]
+		public class CrewManager_checkConsoles
+		{
+			[HarmonyPostfix]
+			private static void Postfix(CrewManager __instance)
+			{
+				bool flag = true;
+				if (__instance.currentCosm.ship != null && __instance.currentCosm.ship.id == PLAYER.currentTeam.ownedShip)
+				{
+					flag = false;
+				}
+				else
+				{
+					using (IEnumerator<Crew> enumerator = __instance.currentCosm.crew.Values.GetEnumerator())
+					{
+						while (enumerator.MoveNext())
+						{
+							if (enumerator.Current.isPlayer)
+							{
+								flag = false;
+							}
+						}
+					}
+				}
+				if (flag && __instance.currentCosm.modules.Exists((item) => item.GetType() == typeof(MissileFactory) && (item as MissileFactory).goo < (double)(item as MissileFactory).gooUse))
+				{
+					foreach (var module in __instance.currentCosm.modules)
+					{
+						if (module.GetType() == typeof(CargoBay) && (module as CargoBay).storage != null && (module as CargoBay).storage.countItemByType(InventoryItemType.grey_goo) == 0)
+						{
+							bool flag2 = false;
+							foreach (byte key in __instance.currentCosm.crew.Keys)
+							{
+								if (flag2)
+								{
+									break;
+								}
+								if (__instance.currentCosm.crew[key].state == CrewState.idle && !__instance.currentCosm.crew[key].isPlayer && __instance.currentCosm.crew[key].countItemOfType(InventoryItemType.grey_goo) >= 6 )
+								{
+									ModTile[] tiles = module.tiles;
+									for (int i = 0; i < tiles.Length; i++)
+									{
+										if (!tiles[i].blocking)
+										{
+											__instance.currentCosm.crew[key].setGoal(module.tiles[0]);
+											flag2 = true;
+											break;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		//crew on NPC ships will now reload missile factories with grey goo if they have any in their inventory
+		[HarmonyPatch(typeof(Crew), "setGoal")]
+		public class Crew_setGoal
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(Crew __instance, ModTile doIt)
+			{
+				if (__instance.isPlayer)
+				{
+					return true;
+				}
+				__instance.goalFailed();
+				if (__instance.state != CrewState.dead)
+				{
+					__instance.state = CrewState.idle;
+					if (doIt.owner != null && doIt.owner.GetType() == typeof(CargoBay) && doIt.owner.functioning && !(doIt.repairable && (doIt.A < 255 || (doIt.owner != null && doIt.owner.hitpoints < doIt.owner.hitpointsMax))))
+					{
+						Module owner = doIt.owner;
+						if (__instance.checkRange(doIt))
+						{
+							CargoBay cargobay = owner as CargoBay;
+							if (cargobay.storage != null)
+							{
+								int num = 0;
+								num += __instance.countItemOfType(InventoryItemType.grey_goo) / 2;
+								__instance.deleteByType(InventoryItemType.grey_goo, num);
+								for (int i = 0; i < num; i++)
+								{
+									cargobay.storage.placeInFirstSlot(new InventoryItem(InventoryItemType.grey_goo));
+								}
+								return false;
+							}
+							__instance.goalFailed();
+							return false;
+						}
+						__instance.goal = doIt.X;
+						__instance.path = __instance.plotTilePath(doIt.X, 1);
+						if (__instance.path != null)
+						{
+							__instance.ETA = __instance.path.Count;
+							__instance.state = CrewState.moving;
+						}
+					}
+				}
+				return true;
+			}
 		}
 
 		//fixing: quest logic for all of the main questline after killing Budd
