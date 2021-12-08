@@ -24,7 +24,7 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
-		//fixing: crash in gauntlet challange on game saving a tuning kit reward
+		//fixing: game crash in gauntlet challange on saving a tuning kit reward
 		[HarmonyPatch(typeof(GauntletTuningKit))]
 		[HarmonyPatch(MethodType.Constructor)]
 		[HarmonyPatch(new Type[] { typeof(int) })]
@@ -35,6 +35,20 @@ namespace Community_Bug_Fixes
 			private static void Postfix(GauntletTuningKit __instance) 
 			{
 				__instance.type = InventoryItemType.gauntlet_tuning_kit;
+			}
+		}
+
+		//fixing crash on saving and loading gauntlet in a boss battle where only 2 enemies are left
+		[HarmonyPatch(typeof(GauntletChallengeRev2), "update")]
+		public class GauntletChallengeRev2_update
+		{
+			[HarmonyPrefix]
+			private static void Prefix(GauntletChallengeRev2 __instance, ref float[] ___timers)
+			{
+				if (__instance.currentStage == GauntletChallengeStage.boss_battle && ___timers == null)
+				{
+					___timers = new float[1];
+				}
 			}
 		}
 
@@ -144,6 +158,44 @@ namespace Community_Bug_Fixes
 				return true;
 			}
 		}
+
+		//fixing: placing some grey goo for any spawning ships which have missile factories and not enough crew to reload them
+		[HarmonyPatch(typeof(WorldActor), "getShip", new Type[] { typeof(byte) })]
+		public class WorldActor_getShip
+		{
+			[HarmonyPostfix]
+			private static void Postfix(ref Ship __result)
+			{
+				if (__result != null && __result.faction != 2 && __result.cosm?.crew != null && __result.cosm.crew.Count > 0)
+				{
+					if (__result.cosm.modules != null && __result.cosm.modules.Exists((item) => item.GetType() == typeof(MissileFactory)) && __result.cosm.crew.Count <= __result.cosm.consoles.Count)
+					{
+						if (__result.cosm.modules.TrueForAll((module) => (module.GetType() != typeof(CargoBay) || module.GetType() == typeof(CargoBay) && (module as CargoBay).storage != null && (module as CargoBay).storage.countItemByType(InventoryItemType.grey_goo) == 0)))
+						{
+							foreach (var module in __result.cosm.modules)
+							{
+								if (module.GetType() == typeof(CargoBay) && (module as CargoBay).storage != null && (module as CargoBay).storage.countItemByType(InventoryItemType.grey_goo) == 0)
+								{
+									int amount = __result.cosm.modules.FindAll((item) => item.GetType() == typeof(MissileMagazine)).Count * RANDOM.Next(1, 3);
+									CargoBay cargobay = module as CargoBay;
+									for (int i = 0; i < amount; i++)
+									{
+										cargobay.storage.placeInFirstSlot(new InventoryItem(InventoryItemType.grey_goo));
+									}
+									break;
+								}
+							}
+							int crewtoadd = __result.cosm.consoles.Count - __result.cosm.crew.Count;
+							for (int i = 0; i < crewtoadd; i++)
+							{
+								__result.cosm.addOneCrew();
+							}
+						}
+					}		
+				}
+			}
+		}
+
 
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(SSCMegaFortQuest), "spawnBoss")]
