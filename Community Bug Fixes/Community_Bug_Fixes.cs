@@ -24,6 +24,21 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		//fixing: crash in gauntlet challange on game saving a tuning kit reward
+		[HarmonyPatch(typeof(GauntletTuningKit))]
+		[HarmonyPatch(MethodType.Constructor)]
+		[HarmonyPatch(new Type[] { typeof(int) })]
+		public class GauntletTuningKit_GauntletTuningKit
+		{
+
+			[HarmonyPostfix]
+			private static void Postfix(GauntletTuningKit __instance) 
+			{
+				__instance.type = InventoryItemType.gauntlet_tuning_kit;
+			}
+		}
+
+
 		//crew on NPC ships will now reload missile factories with grey goo if they have any in their inventory
 		[HarmonyPatch(typeof(CrewManager), "checkConsoles")]
 		public class CrewManager_checkConsoles
