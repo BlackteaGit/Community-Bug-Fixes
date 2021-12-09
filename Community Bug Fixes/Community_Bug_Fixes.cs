@@ -12,6 +12,7 @@ using System.IO;
 using System.Data.SQLite;
 using System.Data;
 using Module = CoOpSpRpG.Module;
+using WaywardExtensions;
 
 namespace Community_Bug_Fixes
 {
@@ -24,19 +25,25 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
-		//fixing: game crash in gauntlet challange on saving a tuning kit reward
-		[HarmonyPatch(typeof(GauntletTuningKit))]
+		//fixing: crash after loading savegame in a gauntlet boss battle and saving again after killing the boss, caused by icons not loading properly
+		[HarmonyPatch(typeof(BattleSessionG))]
 		[HarmonyPatch(MethodType.Constructor)]
-		[HarmonyPatch(new Type[] { typeof(int) })]
-		public class GauntletTuningKit_GauntletTuningKit
+		[HarmonyPatch(new Type[] { typeof(PlanetGauntlet), typeof(BinaryReader), typeof(Ship) })]
+		public class BattleSessionG_BattleSessionG
 		{
 
 			[HarmonyPostfix]
-			private static void Postfix(GauntletTuningKit __instance) 
+			private static void Postfix(BattleSessionG __instance)
 			{
-				__instance.type = InventoryItemType.gauntlet_tuning_kit;
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+
+				for (int i = 0; i < __instance.challenges.Count; i++)
+				{
+					__instance.challenges[i].icon = __instance.icons.Find((icon) => icon.position == (Vector2)typeof(GauntletChallengeRev2).GetField("position", flags).GetValue(__instance.challenges[i]));
+				}
 			}
 		}
+
 
 		//fixing crash on saving and loading gauntlet in a boss battle where only 2 enemies are left
 		[HarmonyPatch(typeof(GauntletChallengeRev2), "update")]
@@ -52,6 +59,19 @@ namespace Community_Bug_Fixes
 			}
 		}
 
+		//fixing: game crash in gauntlet challange on saving a tuning kit reward
+		[HarmonyPatch(typeof(GauntletTuningKit))]
+		[HarmonyPatch(MethodType.Constructor)]
+		[HarmonyPatch(new Type[] { typeof(int) })]
+		public class GauntletTuningKit_GauntletTuningKit
+		{
+
+			[HarmonyPostfix]
+			private static void Postfix(GauntletTuningKit __instance) 
+			{
+				__instance.type = InventoryItemType.gauntlet_tuning_kit;
+			}
+		}
 
 		//crew on NPC ships will now reload missile factories with grey goo if they have any in their inventory
 		[HarmonyPatch(typeof(CrewManager), "checkConsoles")]
