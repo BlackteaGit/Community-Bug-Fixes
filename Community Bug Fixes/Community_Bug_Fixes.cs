@@ -12,7 +12,7 @@ using System.IO;
 using System.Data.SQLite;
 using System.Data;
 using Module = CoOpSpRpG.Module;
-using WaywardExtensions;
+using System.Collections.Concurrent;
 
 namespace Community_Bug_Fixes
 {
@@ -24,6 +24,34 @@ namespace Community_Bug_Fixes
 			Harmony harmony = new Harmony("blacktea.Community_Bug_Fixes");
 			harmony.PatchAll();
 		}
+
+		//fixing: gives player instructions how to properly use repair station.
+		[HarmonyPatch(typeof(CoOpSpRpG.Console), "givePlayerControl")] 
+		public class Console_givePlayerControl
+		{
+
+			[HarmonyPrefix]
+			private static void Prefix(CoOpSpRpG.Console __instance)
+			{
+				if (__instance.ship.GetType() == typeof(Station) && PLAYER.currentGame != null && __instance.ship.id != PLAYER.currentGame.homeBaseId)
+				{
+					if (PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
+					{
+						Color[] botD = __instance.ship.botD;
+						for (int i = 0; i < botD.Length; i++)
+						{
+							Module module = TILEBAG.getModule(botD[i]);
+							if (module != null && module.type == ModuleType.drone_launcher && (module as DroneLauncher).spellID == 32U)
+							{
+								SCREEN_MANAGER.widgetChat.AddMessage("This station offers repair services, please hail from your ship to request repairs.", MessageTarget.Ship);
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+
 
 		//fixing: crash after loading savegame in a gauntlet boss battle and saving again after killing the boss, caused by icons not loading properly
 		[HarmonyPatch(typeof(BattleSessionG))]
@@ -43,7 +71,6 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
 
 		//fixing crash on saving and loading gauntlet in a boss battle where only 2 enemies are left
 		[HarmonyPatch(typeof(GauntletChallengeRev2), "update")]
@@ -98,11 +125,11 @@ namespace Community_Bug_Fixes
 						}
 					}
 				}
-				if (flag && __instance.currentCosm.modules.Exists((item) => item.GetType() == typeof(MissileFactory) && (item as MissileFactory).goo < (double)(item as MissileFactory).gooUse))
+				if (flag && __instance.currentCosm.cargoBays != null && __instance.currentCosm.cargoBays.Count > 0 && __instance.currentCosm.modules.Exists((item) => item.GetType() == typeof(MissileFactory) && (item as MissileFactory).goo < (double)(item as MissileFactory).gooUse))
 				{
-					foreach (var module in __instance.currentCosm.modules)
+					foreach (var cargobay in __instance.currentCosm.cargoBays)
 					{
-						if (module.GetType() == typeof(CargoBay) && (module as CargoBay).storage != null && (module as CargoBay).storage.countItemByType(InventoryItemType.grey_goo) == 0)
+						if (cargobay.storage != null && cargobay.storage.countItemByType(InventoryItemType.grey_goo) == 0)
 						{
 							bool flag2 = false;
 							foreach (byte key in __instance.currentCosm.crew.Keys)
@@ -113,12 +140,12 @@ namespace Community_Bug_Fixes
 								}
 								if (__instance.currentCosm.crew[key].state == CrewState.idle && !__instance.currentCosm.crew[key].isPlayer && __instance.currentCosm.crew[key].countItemOfType(InventoryItemType.grey_goo) >= 6 )
 								{
-									ModTile[] tiles = module.tiles;
+									ModTile[] tiles = cargobay.tiles;
 									for (int i = 0; i < tiles.Length; i++)
 									{
 										if (!tiles[i].blocking)
 										{
-											__instance.currentCosm.crew[key].setGoal(module.tiles[0]);
+											__instance.currentCosm.crew[key].setGoal(cargobay.tiles[0]);
 											flag2 = true;
 											break;
 										}
@@ -186,18 +213,17 @@ namespace Community_Bug_Fixes
 			[HarmonyPostfix]
 			private static void Postfix(ref Ship __result)
 			{
-				if (__result != null && __result.faction != 2 && __result.cosm?.crew != null && __result.cosm.crew.Count > 0)
+				if (__result != null && __result.faction != 2UL && __result.cosm?.crew != null && __result.cosm.crew.Count > 0)
 				{
 					if (__result.cosm.modules != null && __result.cosm.modules.Exists((item) => item.GetType() == typeof(MissileFactory)) && __result.cosm.crew.Count <= __result.cosm.consoles.Count)
 					{
-						if (__result.cosm.modules.TrueForAll((module) => (module.GetType() != typeof(CargoBay) || module.GetType() == typeof(CargoBay) && (module as CargoBay).storage != null && (module as CargoBay).storage.countItemByType(InventoryItemType.grey_goo) == 0)))
+						if (__result.cosm.cargoBays != null && __result.cosm.cargoBays.Count > 0 && __result.cosm.cargoBays.TrueForAll((bay) => bay.storage != null && bay.storage.countItemByType(InventoryItemType.grey_goo) == 0))
 						{
-							foreach (var module in __result.cosm.modules)
+							foreach (var cargobay in __result.cosm.cargoBays)
 							{
-								if (module.GetType() == typeof(CargoBay) && (module as CargoBay).storage != null && (module as CargoBay).storage.countItemByType(InventoryItemType.grey_goo) == 0)
+								if (cargobay.storage != null && cargobay.storage.countItemByType(InventoryItemType.grey_goo) == 0)
 								{
 									int amount = __result.cosm.modules.FindAll((item) => item.GetType() == typeof(MissileMagazine)).Count * RANDOM.Next(1, 3);
-									CargoBay cargobay = module as CargoBay;
 									for (int i = 0; i < amount; i++)
 									{
 										cargobay.storage.placeInFirstSlot(new InventoryItem(InventoryItemType.grey_goo));
@@ -1032,7 +1058,7 @@ namespace Community_Bug_Fixes
 		public class HailAnimation_setupPlayerHailSend
 		{
 			[HarmonyPrefix]
-			private static bool Prefix(Crew ___representative, List<ResponseImmediateAction> ___results)
+			private static bool Prefix(Crew ___representative, List<ResponseImmediateAction> ___results, List<StationServices> ___stationServices)
 			{
 				if (PLAYER.currentSession.GetType() == typeof(BattleSessionSA) || PLAYER.currentSession.GetType() == typeof(BattleSessionTA))
 				{
@@ -1054,6 +1080,11 @@ namespace Community_Bug_Fixes
 					dialogueTree.text = "There doesn't seem to be anyone there...";
 					dialogueTree.addOption("goodbye", dialogueTree2);
 					return false; //supress executing the original method
+				}
+
+				if (___stationServices != null && ___representative.faction == 2UL)         //fixing: after using a console on a repair station it changes faction and no longer offers any repair services if you hail it.
+				{
+					___representative.faction = 5UL;
 				}
 				return true; //execute the original method
 			}
@@ -1507,9 +1538,279 @@ namespace Community_Bug_Fixes
 				return false; //instruction for harmony to supress executing the original method
 			}
 		}
-		
 
 
+		[HarmonyPatch(typeof(ConsoleThought), "navUpdate")] // AI for ally escorting player, fixing AI bug
+		public class ConsoleThought_navUpdate
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(ConsoleThought __instance, ConcurrentQueue<CrewInteriorAlert> interiorAlerts, BattleSession session, Ship ship, CoOpSpRpG.Console console, float elapsed, ref float ___assesmentTimer, ref float ___closeAirlockCountdown,
+			ref float ___engagementTimer, ref ulong ___lastCheckOnHP, ref float ___alternateActionTimer, ref bool ___dronesOut, ref float ___errorRefresh, ref float ___beamErrorRefresh, ref float ___pathfidingUpdateTimer, ref float ___navigationTimer,
+			ref Ship ___aimTarget, float ___navigationUpdatePeriod)
+			{
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+				if (__instance.state == ConsoleState.running) // bug fixing
+				{
+					___assesmentTimer += elapsed;
+					if (___assesmentTimer > 60f)
+					{
+						___assesmentTimer = 0f;
+						if (console != null)
+						{
+							console.ammoConservation = true;
+						}
+						__instance.assessed = false;
+						if (__instance.owner.team != null && __instance.owner.team.goalType != __instance.goalType)
+						{
+							__instance.goalType = __instance.owner.team.goalType;
+							__instance.state = ConsoleState.idle;
+						}
+						if (ship.dockingActive && ___closeAirlockCountdown < -1f)
+						{
+							___closeAirlockCountdown = 120f;
+						}
+					}
+					___engagementTimer += elapsed;
+					if (___engagementTimer > 5f)
+					{
+						___engagementTimer = 0f;
+						ulong num = ship.checkMassFast();
+						if (Math.Abs((long)(num - ___lastCheckOnHP)) >= 300L)
+						{
+							var args = new object[] { ship, console };
+							typeof(ConsoleThought).GetMethod("ReassesEngagement", flags, null, new Type[] { typeof(Ship), typeof(CoOpSpRpG.Console) }, null).Invoke(__instance, args);
+							//__instance.ReassesEngagement(ship, console);
+							___lastCheckOnHP = num;
+						}
+					}
+					if (___closeAirlockCountdown > 0f && __instance.owner.faction != 2UL && session.GetType() != typeof(BattleSessionSC))
+					{
+						___closeAirlockCountdown -= elapsed;
+						if (___closeAirlockCountdown <= 0f)
+						{
+							___closeAirlockCountdown = -100f;
+							ship.toggleDocking(false);
+						}
+					}
+					else if (__instance.owner.faction == 2UL && session.GetType() != typeof(BattleSessionSC))
+					{
+						ship.toggleDocking(true);
+					}
+					var arg = new object[] { ship, console, true };
+					var dmethod = typeof(ConsoleThought).GetMethod("assesShip", flags, null, new Type[] { typeof(Ship), typeof(CoOpSpRpG.Console), typeof(Boolean) }, null);
+					var assessed = (bool)dmethod.Invoke(__instance, arg);
+					//if (!__instance.assessed && __instance.assesShip(ship, console, true))
+					if (!__instance.assessed && assessed)
+					{
+						__instance.state = ConsoleState.idle;
+					}
+					CrewInteriorAlert alert;
+					while (interiorAlerts.TryDequeue(out alert))
+					{
+						//__instance.handleInteriorAlert(alert, ship);
+						var args = new object[] { alert, ship };
+						typeof(ConsoleThought).GetMethod("handleInteriorAlert", flags, null, new Type[] { typeof(CrewInteriorAlert), typeof(Ship) }, null).Invoke(__instance, args);
+
+					}
+					var args2 = new object[] { session, ship, console, elapsed };
+					typeof(ConsoleThought).GetMethod("UpdateCombatState", flags, null, new Type[] { typeof(BattleSession), typeof(Ship), typeof(CoOpSpRpG.Console), typeof(float) }, null).Invoke(__instance, args2);
+					//__instance.UpdateCombatState(session, ship, console, elapsed);
+					if (___alternateActionTimer > 100f)
+					{
+						___alternateActionTimer = 0f;
+						__instance.state = ConsoleState.idle;
+						___dronesOut = false;
+					}
+					ship.throttle = 0.7f;
+					___errorRefresh += elapsed;
+					if (___errorRefresh >= 0.9f)
+					{
+						___errorRefresh = (float)(RANDOM.NextDouble() * 0.1);
+						__instance.newError = true;
+					}
+					___beamErrorRefresh += elapsed;
+					if (___beamErrorRefresh >= 6f)
+					{
+						___beamErrorRefresh = (float)(RANDOM.NextDouble() * 1.0);
+						__instance.newBeamError = true;
+					}
+					___alternateActionTimer += elapsed;
+					___pathfidingUpdateTimer += elapsed;
+					___navigationTimer += elapsed;
+					var args3 = new object[] { session, ship, console, elapsed };
+					typeof(ConsoleThought).GetMethod("updateTargetsAndAggro", flags, null, new Type[] { typeof(BattleSession), typeof(Ship), typeof(CoOpSpRpG.Console), typeof(float) }, null).Invoke(__instance, args3);
+					//__instance.updateTargetsAndAggro(session, ship, console, elapsed);
+					if (__instance.target != null)
+					{
+						if (__instance.target.faction == CONFIG.deadShipFaction)
+						{
+							__instance.target = null;
+							ship.aggroTarget = 0UL;
+						}
+						else
+						{
+							ship.aggroTarget = __instance.target.id;
+						}
+					}
+					else
+					{
+						ship.aggroTarget = 0UL;
+					}
+					if (___aimTarget != null && ___aimTarget.faction == CONFIG.deadShipFaction)
+					{
+						___aimTarget = null;
+					}
+				}
+				if (__instance.state == ConsoleState.running) // bug fixing
+				{
+					//bugged case
+					float num3 = Vector2.Distance(ship.position, __instance.desiredDestination);
+					var arg1 = new object[] { ship, console };
+					var myflag1 = (bool)typeof(ConsoleThought).GetMethod("AreEnemiesInAggroRange", flags, null, new Type[] { typeof(Ship), typeof(CoOpSpRpG.Console) }, null).Invoke(__instance, arg1);
+					//if (__instance.AreEnemiesInAggroRange(ship, console) && num3 > ship.navRadius)
+					if (myflag1 && num3 > ship.navRadius)
+					{
+						var arg2 = new object[] { ship };
+						float num4 = (float)typeof(ConsoleThought).GetMethod("CalculateCombatDistance", flags, null, new Type[] { typeof(Ship) }, null).Invoke(__instance, arg2);
+						//float num4 = __instance.CalculateCombatDistance(ship);
+						num3 = float.PositiveInfinity;
+						if (__instance.target != null)
+						{
+							num3 = (__instance.target.position - ship.position).Length();
+						}
+
+						Type moveUpdateDataType = typeof(ConsoleThought).Assembly.GetType("CoOpSpRpG.MovementUpdateData");
+						var moveUpdateData = typeof(ConsoleThought).GetField("moveUpdateData", flags).GetValue(__instance);
+						//var arg8 = new object[] {};
+						var dmethod2 = moveUpdateDataType.GetMethod("Init", flags, null, Type.EmptyTypes, null);
+						dmethod2.Invoke(moveUpdateData, null);
+						//__instance.moveUpdateData.Init();
+
+						bool bInDesiredRange = (num3 <= num4);
+						moveUpdateDataType.GetField("bInDesiredRange", flags).SetValue(moveUpdateData, bInDesiredRange);
+						//__instance.moveUpdateData.bInDesiredRange = (num3 <= num4);
+
+						moveUpdateDataType.GetField("PathEnd", flags).SetValue(moveUpdateData, __instance.desiredDestination);
+						//__instance.moveUpdateData.PathEnd = __instance.desiredDestination;
+
+						arg2 = new object[] { session, ship, num3 };
+						num3 = (float)typeof(ConsoleThought).GetMethod("UpdateActualDestination", flags, null, new Type[] { typeof(BattleSession), typeof(Ship), typeof(float) }, null).Invoke(__instance, arg2);
+						//						num3 = __instance.UpdateActualDestination(session, ship, num3);
+
+						if (___pathfidingUpdateTimer > ___navigationUpdatePeriod)
+						{
+							___pathfidingUpdateTimer = 0f;
+							___navigationTimer = 0f;
+							var args7 = new object[] { session, ship, console, elapsed };
+							typeof(ConsoleThought).GetMethod("UpdatePathfinding", flags, null, new Type[] { typeof(BattleSession), typeof(Ship), typeof(CoOpSpRpG.Console), typeof(float) }, null).Invoke(__instance, args7);
+							//__instance.UpdatePathfinding(session, ship, console, elapsed);
+						}
+						if (___navigationTimer > ___navigationUpdatePeriod / 3f)
+						{
+							___navigationTimer = 0f;
+							var args8 = new object[] { session, ship, console, false };
+							typeof(ConsoleThought).GetMethod("updateNavigationPath", flags, null, new Type[] { typeof(BattleSession), typeof(Ship), typeof(CoOpSpRpG.Console), typeof(bool) }, null).Invoke(__instance, args8);
+
+							//__instance.updateNavigationPath(session, ship, console, false);
+						}
+						ship.throttle = 0.99f;
+						bool flag2 = false;
+						if (__instance.target != null)
+						{
+							flag2 = !session.LineTrace(ship.position, __instance.target.position); //<--------------------------------BUG------------------------------------------------this.target needs null check in vanilla code!
+
+						}
+						/*
+						else
+						{
+							SCREEN_MANAGER.widgetChat.AddMessage("Debug Message: Community Bug fixes mod prevented a rare AI bug! Please report this message to the mod author on discord.", MessageTarget.Ship);
+						}
+						*/
+						ship.velocity.Length();
+						Vector2 vector3 = __instance.actualDestination - ship.position;
+						vector3.Normalize();
+						var arg4 = new object[] { ship };
+						Vector2 vector4 = (Vector2)typeof(ConsoleThought).GetMethod("calculateAvoidanceVector", flags, null, new Type[] { typeof(Ship) }, null).Invoke(__instance, arg4);
+						//Vector2 vector4 = ConsoleThought.calculateAvoidanceVector(ship);
+						float scaleFactor3 = Math.Min(vector3.Length(), 50f);
+						Vector2 worldDir2 = Vector2.Normalize(vector3) * scaleFactor3;
+						float num5 = Vector2.Dot(Vector2.Normalize(ship.velocity), vector3);
+						float scaleFactor4 = 1f - Math.Max(0.3f, num5);
+
+						if (bInDesiredRange && flag2)
+						{
+							ship.throttle = 0.99f;
+							ship.strafeMove(Vector2.Zero);
+							ship.aimMove(__instance.actualDestination);
+						}
+						else
+						{
+							ship.throttle = Math.Max(0.5f, (1f - vector4.Length()) * ship.throttle);
+							ship.aimMove(__instance.actualDestination);
+							if (num5 < 0.8f)
+							{
+								worldDir2 = 0.5f * -Vector2.Normalize(ship.velocity) * scaleFactor4;
+							}
+							else
+							{
+								worldDir2 = Vector2.Zero;
+							}
+							ship.strafeMove(worldDir2);
+						}
+						var firstflag = (bool)moveUpdateDataType.GetField("bIsOnPath", flags).GetValue(moveUpdateData);
+						var secondflag = (bool)moveUpdateDataType.GetField("bCanSeeDestination", flags).GetValue(moveUpdateData);
+						if (vector4 != Vector2.Zero)
+						{
+							ship.throttle = 0.5f;
+							if (flag2)
+							{
+								ship.throttle = 0.8f;
+							}
+							//else if (__instance.moveUpdateData.bIsOnPath || __instance.moveUpdateData.bCanSeeDestination)
+							else if (firstflag || secondflag)
+							{
+								ship.throttle = 0.99f;
+								vector4 *= 0.3f;
+							}
+							if (num5 < 0.8f && (!bInDesiredRange || !flag2))
+							{
+								ship.strafeMove(-(Vector2.Normalize(ship.velocity) * scaleFactor4) + vector4);
+							}
+							else
+							{
+								ship.strafeMove(vector4);
+							}
+						}
+						var args5 = new object[] { session, ship, console, elapsed, true, true, true };
+						typeof(ConsoleThought).GetMethod("FiringActions", flags, null, new Type[] { typeof(BattleSession), typeof(Ship), typeof(CoOpSpRpG.Console), typeof(float), typeof(bool), typeof(bool), typeof(bool) }, null).Invoke(__instance, args5);
+						//__instance.FiringActions(session, ship, console, elapsed, true, true, true);
+						return false;
+					}
+					var arg3 = new object[] { ship, console };
+					var myflag3 = (bool)typeof(ConsoleThought).GetMethod("AreEnemiesInAggroRange", flags, null, new Type[] { typeof(Ship), typeof(CoOpSpRpG.Console) }, null).Invoke(__instance, arg3);
+					//if (__instance.AreEnemiesInAggroRange(ship, console))
+					if (myflag3)
+					{
+						var arg6 = new object[] { session, ship, console };
+						__instance.desiredDestination = (Vector2)typeof(ConsoleThought).GetMethod("GetRunAwayLoc", flags, null, new Type[] { typeof(BattleSession), typeof(Ship), typeof(CoOpSpRpG.Console) }, null).Invoke(__instance, arg6);
+						//__instance.desiredDestination = __instance.GetRunAwayLoc(session, ship, console);
+						return false;
+					}
+					console.crew.goalCompleted();
+					console.crew = null;
+					__instance.state = ConsoleState.idle;
+					if (__instance.isInCombat && __instance.combatDuration > 10f)
+					{
+						__instance.isInCombat = false;
+						__instance.isRunningAway = false;
+					}
+					//__instance.LeaveCombat();
+					typeof(ConsoleThought).GetMethod("LeaveCombat", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
+					return false;
+				}
+				return true;
+			}
+		}
 
 	}
 	//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
@@ -1545,6 +1846,7 @@ namespace Community_Bug_Fixes
 			public bool Value = new bool();
 		}
 	}
+
 
 
 }
