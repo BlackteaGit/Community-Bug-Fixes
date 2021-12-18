@@ -13,6 +13,8 @@ using System.Data.SQLite;
 using System.Data;
 using Module = CoOpSpRpG.Module;
 using System.Collections.Concurrent;
+using Console = CoOpSpRpG.Console;
+using CoOpSpRpG.Actors.Misc;
 
 namespace Community_Bug_Fixes
 {
@@ -23,6 +25,159 @@ namespace Community_Bug_Fixes
 		{
 			Harmony harmony = new Harmony("blacktea.Community_Bug_Fixes");
 			harmony.PatchAll();
+		}
+
+		//fixing: crystal seed tooltip is not updating if you select a crystal with 0% seed value after a crystal with more than 0% seed value
+		[HarmonyPatch(typeof(Dig), "aim")]
+		public class Dig_aim
+		{
+			[HarmonyPostfix]
+			private static void Postfix(Dig __instance, MicroCosm cosm, Vector2 target, Vector2 screenSpot, ToolTip ___tip, TipStatLarge ___status, TipStatSmall ___stat3)
+			{
+				Rectangle value = new Rectangle((int)target.X - 1, (int)target.Y - 1, 2, 2);
+				foreach (CrystalMonster crystalMonster in cosm.crystals)
+				{
+					if (crystalMonster.bbox.Intersects(value))
+					{				
+						float num3 = (float)(crystalMonster.seedE + crystalMonster.seedM);
+						if (num3 <= 0f)
+						{
+							___stat3.updateStat("-");
+						}
+						break;
+					}
+				}
+			}
+		}
+
+		//fixing: planted crystals are no longer reproducing after a save/reload
+		//fixing: if you save and reload the game after planting a crystal and before it grows a root it will no longer grow
+		[HarmonyPatch(typeof(CrystalMonster))]
+		[HarmonyPatch(MethodType.Constructor)]
+		[HarmonyPatch(new Type[] { typeof(BinaryReader), typeof(int) })]
+		public class CrystalMonster_CrystalMonster
+		{
+
+			[HarmonyPostfix]
+			private static void Postfix(CrystalMonster __instance)
+			{
+				int activeroots = 0;
+				for (int i = 0; i < __instance.genome.tiles.Length; i++)
+				{
+					for (int j = 0; j < __instance.genome.tiles.Length; j++) // in vanilla "spreadCostE", "spreadCostm" stats are not lodead  with game reload an will remain 0
+					{
+						CrystalGene crystalGene = __instance.genome.tiles[i][j];
+						if (crystalGene != null)
+						{
+							if (crystalGene.crystalType == CrystalType.growth)
+							{
+								__instance.spreadCostE += crystalGene.cost;
+								__instance.spreadCostM += crystalGene.cost;
+							}
+							if (crystalGene.crystalType == CrystalType.shell)
+							{
+								__instance.spreadCostE += 90;
+								__instance.spreadCostM += 90;
+							}
+							if (crystalGene.crystalType == CrystalType.battery)
+							{
+								__instance.spreadCostM += 10;
+								__instance.spreadCostE += 90;
+							}
+							if (crystalGene.crystalType == CrystalType.root && crystalGene.active == true)
+							{
+								activeroots++;
+							}
+						}
+					}
+				}
+				if (activeroots == 0) 
+				{
+					for (int i = 0; i < __instance.genome.tiles.Length; i++)
+					{
+						for (int j = 0; j < __instance.genome.tiles.Length; j++)
+						{
+							CrystalGene crystalGene = __instance.genome.tiles[i][j];
+							if (crystalGene != null)
+							{
+								 if(crystalGene.crystalType != CrystalType.shell)
+								 { 
+									__instance.minerals -= crystalGene.built;
+								 }
+								 else
+								 {
+									if (crystalGene.built != 0)
+										__instance.minerals += 80; // in vanilla "minerals" stat is not saved/lodead  with game reload
+								}
+							}
+						}
+					}
+					if (__instance.minerals < 0)
+					{
+						__instance.minerals = 0;
+					}
+				}
+			}
+		}
+
+		//fixing: crew is firing on target out of range of their weapon and not trying to get in range
+		[HarmonyPatch(typeof(Crew), "testLOS")] 
+		public class Crew_testLOS
+		{
+			[HarmonyPostfix]
+			private static void Postfix(Crew __instance, ref bool __result, Vector2 target, MicroCosm cosm)
+			{
+				if (__instance.heldItem != null && __instance.heldItem.GetType() == typeof(Gun))
+				{
+					float num = (__instance.heldItem as Gun).range;
+					float num2 = Vector2.Distance(__instance.position, target);
+					if (num2 > num)
+					{
+						__result = false;
+					}
+				}
+			}
+		}
+
+		//fixing: followers are not equiping their weapon and attacking a monster if they see one and have some other tool equiped.
+		[HarmonyPatch(typeof(Crew), "attack")]
+		public class Crew_attack
+		{
+
+			[HarmonyPrefix]
+			private static void Prefix(Crew __instance)
+			{
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;			
+				{
+					//__instance.selectGun();
+					typeof(Crew).GetMethod("selectGun", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
+					return;
+				}
+			}
+		}
+
+		//fixing: a rare crash on AI trying to use turret metrics even if the ship has no turrets
+		//(the code in "if (this.avgBulletSpeed > 0f)" block needs a null check for shipConsoleMetric.turrets in vanilla)
+		[HarmonyPatch(typeof(ConsoleThought), "FiringActions")]
+		public class ConsoleThought_FiringActions
+		{
+
+			[HarmonyPrefix]
+			private static void Prefix(Ship ship, Console console, ref float ___avgBulletSpeed, ref float __state)
+			{
+
+				__state = ___avgBulletSpeed;
+				if (ship.shipMetric.ConsoleMetrics[console]?.turrets == null)
+				{
+					___avgBulletSpeed = 0f;
+				}
+			}
+
+			[HarmonyPostfix]
+			private static void Postfix(ref float ___avgBulletSpeed, float __state)
+			{
+				___avgBulletSpeed = __state;
+			}
 		}
 
 		//fixing: gives player instructions how to properly use repair station.
