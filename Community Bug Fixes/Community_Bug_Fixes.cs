@@ -14,7 +14,7 @@ using System.Data;
 using Module = CoOpSpRpG.Module;
 using System.Collections.Concurrent;
 using Console = CoOpSpRpG.Console;
-using CoOpSpRpG.Actors.Misc;
+using System.Linq;
 
 namespace Community_Bug_Fixes
 {
@@ -27,12 +27,85 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		//fixing:
+		[HarmonyPatch(typeof(MicroCosm), "updateCrew")]
+		public class MicroCosm_updateCrew
+		{
+			[HarmonyPrefix]
+			private static void Prefix(MicroCosm __instance)
+			{
+				foreach (Crew crew in __instance.crew.Values)
+				{
+					if (!crew.isPlayer && crew.currentCosm == __instance && crew.state == CrewState.dead && __instance.crew.Values.Where((item) => item.name == crew.name && item.state != CrewState.dead).Any())
+					{
+						Crew crew2;
+						__instance.crew.TryRemove(crew.id, out crew2);
+					}
+					if (!crew.isPlayer && crew.currentCosm == __instance && crew.state != CrewState.dead && __instance.crew.Values.Where((item) => item != crew && item.faction == 2UL && crew.faction == 2UL && item.name == crew.name && item.state != CrewState.dead).Any())
+					{
+						Crew crew2;
+						__instance.crew.TryRemove(crew.id, out crew2);
+					}
+				}
+			}
+		}
+		
+
+		//fixing: 
+		/*
+		[HarmonyPatch(typeof(CrewTeamWidget), "update")]
+		public class CrewTeamWidget_update
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(CrewTeamWidget __instance, ConcurrentQueue<Object> ___reports)
+			{
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+				while (___reports.TryDequeue(out var result))
+				{
+
+					if (((IEnumerable<Crew>)__instance.crew).Contains<Crew>((Crew)typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport").GetField("crew", flags).GetValue(result)))
+					{
+						//__instance.readReport(result);
+						var args = new object[] { result };
+						typeof(LogisticsScreenRev3).GetMethod("readReport", flags, null, new Type[] { typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport") }, null).Invoke(__instance, args);			
+					}
+					else
+					{
+						bool flag = false;
+						for (int index = 0; index < __instance.crew.Length; ++index)
+						{
+							Crew crew = (Crew)typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport").GetField("crew", flags).GetValue(result);
+							if (__instance.crew[index] == null && !__instance.names.Contains(crew.name))
+							{
+								flag = true;
+								__instance.crew[index] = crew;
+								break;
+							}
+						}
+						if (flag)
+						{
+							//__instance.readReport(result);
+							var args = new object[] { result };
+							typeof(LogisticsScreenRev3).GetMethod("readReport", flags, null, new Type[] { typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport") }, null).Invoke(__instance, args);
+						}					
+					}
+				}
+				foreach (Crew dead in __instance.crew)
+				{
+					if (dead != null && dead.state == CrewState.dead)
+						__instance.handleDeath(dead);
+				}
+				return false;
+			}
+		}
+		*/
+
 		//fixing: crystal seed tooltip is not updating if you select a crystal with 0% seed value after a crystal with more than 0% seed value
 		[HarmonyPatch(typeof(Dig), "aim")]
 		public class Dig_aim
 		{
 			[HarmonyPostfix]
-			private static void Postfix(Dig __instance, MicroCosm cosm, Vector2 target, Vector2 screenSpot, ToolTip ___tip, TipStatLarge ___status, TipStatSmall ___stat3)
+			private static void Postfix(MicroCosm cosm, Vector2 target, TipStatSmall ___stat3)
 			{
 				Rectangle value = new Rectangle((int)target.X - 1, (int)target.Y - 1, 2, 2);
 				foreach (CrystalMonster crystalMonster in cosm.crystals)
@@ -986,27 +1059,7 @@ namespace Community_Bug_Fixes
 		}
 
 
-		//fixing: game crash on spawning Budds ship. (in vanilla KillBuddQuestRev2.targets is not initiallized on adding values to it )
-		/*
-		 * obsolete  (fixed in 0.9.0.07)
-		 * 
-		[HarmonyPatch(typeof(KillBuddQuestRev2), "test")]
-		public class KillBuddQuestRev2_test
-		{
-			[HarmonyPrefix]
-			private static void Prefix(KillBuddQuestRev2 __instance, ulong ___buddID)
-			{
-				if (___buddID != 0UL && PLAYER.currentSession.allShips.ContainsKey(___buddID))
-				{
-					if (__instance.targets == null)
-					{
-						__instance.targets = new List<ulong>();
-					}
-				}	
-			}
-		}
-		*/
-
+	
 		//In vanilla the exception handling code throws exception itself on removing quests from active list while iterating on it
 		//sadly harmony "finalizer" patch not working for some reason, will think of another way to fix it until it will be fixed in vanilla
 		/* 
@@ -1046,138 +1099,8 @@ namespace Community_Bug_Fixes
 		}
 		*/
 
-		/*  TODO in BattleSessionSP.localUpdate()
-		if (ship18 == PLAYER.currentShip)
-				{
-					if (ship18.grid != this.grid && PLAYER.avatar != null && PLAYER.avatar.state != CrewState.dead)
-					{
-						this.allShips.Remove(ship18.id);																	//removing from collection while iterating
-						PLAYER.currentSession = PLAYER.currentWorld.getSession(ship18.grid);
-						PLAYER.currentSession.addLocalShip(ship18, SessionEntry.flyin);
-						this.shareNeighbors(PLAYER.currentSession);
-						this.deportVisitors();
-						if (Math.Abs(ship18.grid.X - this.grid.X) < 2 && Math.Abs(ship18.grid.Y - this.grid.Y) < 2)
-						{
-							Vector2 value4 = Vector2.Zero;
-							for (int j = 0; j< this.neighbors.Length; j++)
-							{
-								if (this.neighbors[j] == PLAYER.currentSession)
-								{
-			value4 = BattleSession.neighborOffsets[j];
-			break;
-		}
-		}
-		Vector2 value5 = PLAYER.currentShip.position;
-		value5 += value4;
-							BattleSessionSP battleSessionSP = PLAYER.currentSession as BattleSessionSP;
-							foreach (Ship ship27 in this.allShips.Values)													//iterating over the same collection again, probably the source of exception: Crash caused by: core game update unhandled exception Collection was modified; enumeration operation may not execute.
-							{
-								if (ship27 != ship18 && ship27.bBox.Intersects(PLAYER.viewableArea) && Vector2.Distance(value5, ship27.position) < 10000f)
-								{
-									this.sessionVisitors.Remove(ship27);
-									battleSessionSP.allShips[ship27.id] = ship27;
-									ship27.position -= value4;
-									if (Math.Abs(ship27.position.X) > 100000f || Math.Abs(ship27.position.Y) > 100000f)
-									{
-										battleSessionSP.sessionVisitors.Add(ship27);
-									}
-									ship27.grid = battleSessionSP.grid;
-									ship27.findHitbox();
-								}
-							}
 
-
-		*/
-
-		//hotfix for missing stations bug in 9.0.0.10 (fixed in 9.0.0.11)
-		/* 
-		[HarmonyPatch(typeof(WorldActor), "getStation", new Type[] {})]
-		public class WorldActor_getStation
-		{
-			[HarmonyPostfix]
-			private static void Postfix(WorldActor __instance, ref Station __result)
-			{
-				if (__instance.type == ActorType.station)
-				{
-					Station station = null;
-					if (__instance.top != null)
-					{
-						station = new Station(__instance.top, __instance.bot, __instance.emit, __instance.spec, __instance.bump, __instance.width, __instance.height, __instance.collision);
-						station.data = __instance.data;
-						if (__instance.turrets != null)
-						{
-							station.turrets = __instance.turrets;
-							foreach (Turret turret in station.turrets)
-							{
-								if (turret != null)
-								{
-									turret.ship = station;
-								}
-							}
-						}
-						else
-						{
-							station.turrets = new Turret[0];
-						}
-						uint num = 0U;
-						float num2 = 0f;
-						float num3 = 0f;
-						uint num4 = 0U;
-						uint num5 = 0U;
-						for (int j = 0; j < __instance.top.Length; j++)
-						{
-							if (__instance.bot[j].A > 0)
-							{
-								num += 1U;
-								num2 += num4;
-								num3 += num5;
-							}
-							if (__instance.top[j].A > 0)
-							{
-								num += 1U;
-								num2 += num4;
-								num3 += num5;
-							}
-							num4 += 1U;
-							if ((ulong)num4 == (ulong)((long)__instance.width))
-							{
-								num4 = 0U;
-								num5 += 1U;
-							}
-						}
-						if (num > 0U)
-						{
-							__instance.centerOfMass.X = num2 / num;
-							__instance.centerOfMass.Y = num3 / num;
-						}
-						else
-						{
-							__instance.centerOfMass.X = 0f;
-							__instance.centerOfMass.Y = 0f;
-						}
-						station.setID(__instance.id);
-						station.ownershipHistory = __instance.ownershipHistory;
-						station.setFaction(__instance.faction);
-						station.hackingAvailable = __instance.hackingAvailable;
-						station.findAirlocks();
-						station.artOrigin = __instance.centerOfMass;
-					}
-					if (station != null)
-					{
-						station.position = __instance.position;
-						station.grid = __instance.grid;
-						station.rotationAngle = __instance.rotation;
-						station.docksToPerform = __instance.dockedShips;
-						station.toggleDocking(__instance.dockingActive);
-						CosmMetaData data = __instance.data;
-					}
-					__result = station;
-					return;
-				}
-				__result = null;
-			}
-		}
-		*/
+	
 
 		//fixing game crash when activating not connected console. 
 		[HarmonyPatch(typeof(ConsoleAccess), "activate")]
@@ -1371,6 +1294,7 @@ namespace Community_Bug_Fixes
 			}
 		}
 
+
 		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
 		[HarmonyPatch(typeof(ShipNavigationRev3), "updateInput")]
 		public class ShipNavigationRev3_updateInput
@@ -1382,7 +1306,7 @@ namespace Community_Bug_Fixes
 			}
 
 			[HarmonyPostfix]
-			private static void Postfix(ShipNavigationRev3 __instance, KeyboardState __state)
+			private static void Postfix(KeyboardState __state)
 			{
 				KeyboardState newstate = Keyboard.GetState();
 				if(PLAYER.avatar != null &&
@@ -1392,7 +1316,19 @@ namespace Community_Bug_Fixes
 				|| __state.IsKeyDown(CONFIG.keyBindings[3].bind) && newstate.IsKeyUp(CONFIG.keyBindings[3].bind)
 				)
 				{
-					if(PLAYER.avatar.shallNotPass() && PLAYER.avatar.shuffledBinds())
+
+					if (PLAYER.avatar.shallNotPass() && PLAYER.avatar.shuffledBinds())
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(false);
+					}
+
+					if (CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A) //failsafe to load default keybinds
 					{
 						var temp = CONFIG.keyBindings[0].bind;
 						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
@@ -1404,8 +1340,106 @@ namespace Community_Bug_Fixes
 					}
 					PLAYER.avatar.shallNotPass(false);
 				}
+				
+					/*
+					if (__state.IsKeyDown(Keys.PageDown) && newstate.IsKeyUp(Keys.PageDown))
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(false);
+					}
+
+
+					if (__state.IsKeyDown(Keys.PageUp) && newstate.IsKeyUp(Keys.PageUp) && CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A)
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(false);
+					}
+					*/
+				}
+		}
+
+		[HarmonyPatch(typeof(VNavigationRev3), "updateInput")]
+		public class VNavigationRev3_updateInput
+		{
+			[HarmonyPrefix]
+			private static void Prefix(ref KeyboardState __state, KeyboardState ___oldState)
+			{
+				__state = ___oldState;
+			}
+
+			[HarmonyPostfix]
+			private static void Postfix(KeyboardState __state)
+			{
+				KeyboardState newstate = Keyboard.GetState();
+				if (PLAYER.avatar != null &&
+				__state.IsKeyDown(CONFIG.keyBindings[0].bind) && newstate.IsKeyUp(CONFIG.keyBindings[0].bind)
+				|| __state.IsKeyDown(CONFIG.keyBindings[1].bind) && newstate.IsKeyUp(CONFIG.keyBindings[1].bind)
+				|| __state.IsKeyDown(CONFIG.keyBindings[2].bind) && newstate.IsKeyUp(CONFIG.keyBindings[2].bind)
+				|| __state.IsKeyDown(CONFIG.keyBindings[3].bind) && newstate.IsKeyUp(CONFIG.keyBindings[3].bind)
+				)
+				{
+
+					if (PLAYER.avatar.shallNotPass() && PLAYER.avatar.shuffledBinds())
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(false);
+					}
+
+					if (CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A) //failsafe to load default keybinds
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(false);
+					}
+					PLAYER.avatar.shallNotPass(false);
+				}
+
+				/*
+				if (__state.IsKeyDown(Keys.PageDown) && newstate.IsKeyUp(Keys.PageDown))
+				{
+					var temp = CONFIG.keyBindings[0].bind;
+					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+					CONFIG.keyBindings[3].bind = temp;
+					temp = CONFIG.keyBindings[1].bind;
+					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+					CONFIG.keyBindings[2].bind = temp;
+					PLAYER.avatar.shuffledBinds(false);
+				}
+
+
+				if (__state.IsKeyDown(Keys.PageUp) && newstate.IsKeyUp(Keys.PageUp) && CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A)
+				{
+					var temp = CONFIG.keyBindings[0].bind;
+					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+					CONFIG.keyBindings[3].bind = temp;
+					temp = CONFIG.keyBindings[1].bind;
+					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+					CONFIG.keyBindings[2].bind = temp;
+					PLAYER.avatar.shuffledBinds(false);
+				}
+				*/
 			}
 		}
+
 		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
 		[HarmonyPatch(typeof(Airlock), "tryUse")]
 		public class Airlock_tryUse
