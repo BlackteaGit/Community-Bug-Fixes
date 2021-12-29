@@ -27,7 +27,7 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
-		//fixing:
+		//fixing: several conditions which resulted in duplicating crew.
 		[HarmonyPatch(typeof(MicroCosm), "updateCrew")]
 		public class MicroCosm_updateCrew
 		{
