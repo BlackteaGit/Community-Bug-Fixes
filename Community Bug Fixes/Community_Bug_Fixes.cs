@@ -27,6 +27,7 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+
 		//fixing: several conditions which resulted in duplicating crew.
 		[HarmonyPatch(typeof(MicroCosm), "updateCrew")]
 		public class MicroCosm_updateCrew
@@ -213,18 +214,268 @@ namespace Community_Bug_Fixes
 		}
 
 		//fixing: followers are not equiping their weapon and attacking a monster if they see one and have some other tool equiped.
+		//fixing: a rare crash while crew firing their weapon
 		[HarmonyPatch(typeof(Crew), "attack")]
 		public class Crew_attack
 		{
 
 			[HarmonyPrefix]
-			private static void Prefix(Crew __instance)
+			private static bool Prefix(Crew __instance, float elapsed,ref float ___floatRegister, ref Vector2 ___strafeSpot, ref bool ___targetLOS)
 			{
 				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;			
 				{
-					//__instance.selectGun();
-					typeof(Crew).GetMethod("selectGun", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
-					return;
+					
+					if (__instance.goal.GetType() == typeof(Crew))
+					{
+						Crew crew = __instance.goal as Crew;
+						if (crew.state == CrewState.dead || crew.currentCosm != __instance.currentCosm || !__instance.currentCosm.crew.ContainsKey(crew.id))
+						{
+							__instance.goalCompleted();
+							return false;
+						}
+						if (__instance.heldSkill == null || !(__instance.heldSkill.GetType() == typeof(HitScanShoot)))
+						{
+							//__instance.selectGun();
+							typeof(Crew).GetMethod("selectGun", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
+							return false;
+						}
+						___floatRegister += elapsed;
+						if (___floatRegister > 0.3f)
+						{
+							___floatRegister = 0f;
+							//___targetLOS = __instance.testLOS(crew.position, __instance.currentCosm);
+							var args = new object[] { crew.position, __instance.currentCosm };
+							___targetLOS = (bool)typeof(Crew).GetMethod("testLOS", flags, null, new Type[] { typeof(Vector2), typeof(MicroCosm) }, null).Invoke(__instance, args);
+						}
+						if (___targetLOS)
+						{
+							__instance.target = crew.position;
+							Vector2 vector = __instance.target - __instance.position;
+							__instance.rotation = (float)Math.Atan2((double)vector.Y, (double)vector.X) + 1.5707964f;
+							__instance.heldSkill.activate(__instance, __instance.currentCosm, __instance.target);
+							if (___strafeSpot == Vector2.Zero)
+							{
+								int num = 0;
+								int num2 = __instance.currentCosm.nodeAt(__instance.position);
+								if (num2 == -1)
+								{
+									return false;
+								}
+								SmartNode smartNode = __instance.currentCosm.smartNodes[num2];
+								for (int i = 0; i < 8; i++)
+								{
+									if (smartNode.neighbors[i] != null && smartNode.neighbors[i].passable)
+									{
+										num++;
+									}
+								}
+								int num3 = RANDOM.Next(num);
+								int num4 = -1;
+								int num5 = -1;
+								//fixing: a rare crash while crew firing their weapon
+								while (num5 < num3 && num4 < 7)
+								{
+									num4++;
+									if (smartNode.neighbors[num4] != null && smartNode.neighbors[num4].passable)
+									{
+										num5++;
+									}
+								}
+								if (smartNode.neighbors[num4] == null || !smartNode.neighbors[num4].passable)
+								{
+									return false;
+								}
+								___strafeSpot = __instance.currentCosm.walkingLocation(smartNode.neighbors[num4].index);
+								return false;
+							}
+							else
+							{
+								float num6 = __instance.speed / 3f * elapsed;
+								if (Vector2.Distance(__instance.position, ___strafeSpot) < num6)
+								{
+									__instance.position = ___strafeSpot;
+									___strafeSpot = Vector2.Zero;
+									return false;
+								}
+								__instance.position += Vector2.Normalize(___strafeSpot - __instance.position) * num6;
+								return false;
+							}
+						}
+						else
+						{
+							___strafeSpot = Vector2.Zero;
+							if (__instance.path != null && __instance.path.Count > 1)
+							{
+								if (___floatRegister == 0f)
+								{
+									__instance.target = __instance.currentCosm.walkingLocation(__instance.path.First<int>());
+									if (Vector2.Distance(__instance.target, crew.position) > 256f)
+									{
+										int num7 = (int)(crew.position.X / 16f);
+										int num8 = (int)(crew.position.Y / 16f);
+										int d = num7 + num8 * __instance.currentCosm.width;
+										__instance.path = __instance.plotTilePath(d, 1);
+										if (__instance.path == null)
+										{
+											return false;
+										}
+										__instance.ETA = __instance.path.Count;
+									}
+								}
+								__instance.goTo(1f, elapsed);
+								return false;
+							}
+							if (___floatRegister == 0f)
+							{
+								int num9 = (int)(crew.position.X / 16f);
+								int num10 = (int)(crew.position.Y / 16f);
+								int d2 = num9 + num10 * __instance.currentCosm.width;
+								try
+								{
+									__instance.path = __instance.plotTilePath(d2, 1);
+								}
+								catch
+								{
+									return false;
+								}
+								if (__instance.path == null)
+								{
+									return false;
+								}
+								__instance.ETA = __instance.path.Count;
+								return false;
+							}
+						}
+					}
+					else if (__instance.goal.GetType() == typeof(Monster))
+					{
+						Monster monster = __instance.goal as Monster;
+						if (monster.dead)
+						{
+							__instance.goalCompleted();
+							return false;
+						}
+
+						if (__instance.heldSkill == null || !(__instance.heldSkill.GetType() == typeof(HitScanShoot)))
+						{
+							//fixing: followers are not equiping their weapon and attacking a monster if they see one and have some other tool equiped.
+							typeof(Crew).GetMethod("selectGun", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
+							return false;
+						}
+
+						if (__instance.heldSkill != null && __instance.heldSkill.GetType() == typeof(HitScanShoot))
+						{
+							
+							___floatRegister += elapsed;
+							if (___floatRegister > 0.3f)
+							{
+								___floatRegister = 0f;
+								//___targetLOS = __instance.testLOS(monster.position, __instance.currentCosm);
+								var args = new object[] { monster.position, __instance.currentCosm };
+								___targetLOS = (bool)typeof(Crew).GetMethod("testLOS", flags, null, new Type[] { typeof(Vector2), typeof(MicroCosm) }, null).Invoke(__instance, args);
+
+							}
+							if (___targetLOS)
+							{
+								__instance.target = monster.position;
+								Vector2 vector2 = __instance.target - __instance.position;
+								__instance.rotation = (float)Math.Atan2((double)vector2.Y, (double)vector2.X) + 1.5707964f;
+								__instance.heldSkill.activate(__instance, __instance.currentCosm, __instance.target);
+								if (___strafeSpot == Vector2.Zero)
+								{
+									int num11 = 0;
+									SmartNode smartNode2 = __instance.currentCosm.smartNodes[__instance.currentCosm.nodeAt(__instance.position)];
+									for (int j = 0; j < 8; j++)
+									{
+										if (smartNode2.neighbors[j] != null && smartNode2.neighbors[j].passable)
+										{
+											num11++;
+										}
+									}
+									int num12 = RANDOM.Next(num11);
+									int num13 = -1;
+									int num14 = -1;
+									//fixing: a rare crash while crew firing their weapon
+									while (num14 < num12 && num13 < 7)
+									{
+										num13++;
+										if (smartNode2.neighbors[num13] != null && smartNode2.neighbors[num13].passable)
+										{
+											num14++;
+										}
+									}
+									if (smartNode2.neighbors[num13] == null || !smartNode2.neighbors[num13].passable)
+									{
+										return false;
+									}
+									___strafeSpot = __instance.currentCosm.walkingLocation(smartNode2.neighbors[num13].index);
+									return false;
+								}
+								else
+								{
+									float num15 = __instance.speed / 3f * elapsed;
+									if (Vector2.Distance(__instance.position, ___strafeSpot) < num15)
+									{
+										__instance.position = ___strafeSpot;
+										___strafeSpot = Vector2.Zero;
+										return false;
+									}
+									__instance.position += Vector2.Normalize(___strafeSpot - __instance.position) * num15;
+									return false;
+								}
+							}
+							else
+							{
+								___strafeSpot = Vector2.Zero;
+								if (__instance.path != null && __instance.path.Count > 1)
+								{
+									if (___floatRegister == 0f)
+									{
+										__instance.target = __instance.currentCosm.walkingLocation(__instance.path.First<int>());
+										if (Vector2.Distance(__instance.target, monster.position) > 256f)
+										{
+											int num16 = (int)(monster.position.X / 16f);
+											int num17 = (int)(monster.position.Y / 16f);
+											int d3 = num16 + num17 * __instance.currentCosm.width;
+											__instance.path = __instance.plotTilePath(d3, 1);
+											if (__instance.path == null)
+											{
+												return false;
+											}
+											__instance.ETA = __instance.path.Count;
+										}
+									}
+									__instance.goTo(1f, elapsed);
+									return false;
+								}
+								if (___floatRegister == 0f)
+								{
+									int num18 = (int)(monster.position.X / 16f);
+									int num19 = (int)(monster.position.Y / 16f);
+									int d4 = num18 + num19 * __instance.currentCosm.width;
+									try
+									{
+										__instance.path = __instance.plotTilePath(d4, 1);
+									}
+									catch
+									{
+										return false;
+									}
+									if (__instance.path == null)
+									{
+										return false;
+									}
+									__instance.ETA = __instance.path.Count;
+									return false;
+								}
+							}
+						}
+					}
+					else
+					{
+						__instance.goalFailed();
+					}
+					return false;
 				}
 			}
 		}
