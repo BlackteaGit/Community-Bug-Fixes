@@ -27,6 +27,27 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		//fixing: deleting character profile doesn't delete all the data form database.
+		[HarmonyPatch(typeof(CHARACTER_DATA), "deleteCharacter")]
+		public class CHARACTER_DATA_deleteCharacter
+		{
+			[HarmonyPrefix]
+			private static void Prefix(string name)
+			{
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+				var dBCon = typeof(CHARACTER_DATA).GetField("dBCon", flags).GetValue(null) as SQLiteConnection;
+				new SQLiteCommand("DELETE from cargo where name = '" + name + "'", dBCon).ExecuteNonQuery();
+				new SQLiteCommand("DELETE from continues where name = '" + name + "'", dBCon).ExecuteNonQuery();
+				new SQLiteCommand("DELETE from designs where name = '" + name + "'", dBCon).ExecuteNonQuery();
+				new SQLiteCommand("DELETE from gates where name = '" + name + "'", dBCon).ExecuteNonQuery();
+				new SQLiteCommand("DELETE from resources where name = '" + name + "'", dBCon).ExecuteNonQuery();
+				new SQLiteCommand("DELETE from shipresearch where name = '" + name + "'", dBCon).ExecuteNonQuery();
+				new SQLiteCommand("DELETE from turretprefs where name = '" + name + "'", dBCon).ExecuteNonQuery();
+				new SQLiteCommand("DELETE from routeprefs where name = '" + name + "'", dBCon).ExecuteNonQuery();
+				new SQLiteCommand("DELETE from icons where name = '" + name + "'", dBCon).ExecuteNonQuery();
+			}
+		}
+
 
 		//fixing: several conditions which resulted in duplicating crew.
 		[HarmonyPatch(typeof(MicroCosm), "updateCrew")]
