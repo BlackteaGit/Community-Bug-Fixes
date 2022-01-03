@@ -531,10 +531,11 @@ namespace Community_Bug_Fixes
 		{
 
 			[HarmonyPrefix]
-			private static void Prefix(CoOpSpRpG.Console __instance)
+			private static void Prefix(CoOpSpRpG.Console __instance, ref ulong __state)
 			{
 				if (__instance.ship.GetType() == typeof(Station) && PLAYER.currentGame != null && __instance.ship.id != PLAYER.currentGame.homeBaseId)
 				{
+					__state = PLAYER.currentTeam.ownedShip;
 					if (PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
 					{
 						Color[] botD = __instance.ship.botD;
@@ -549,6 +550,40 @@ namespace Community_Bug_Fixes
 						}
 					}
 				}
+			}
+			//fixing: using a console on neutral stations adds the station crew as your followers if you reload the game on that station
+			[HarmonyPostfix]
+			private static void Postfix(CoOpSpRpG.Console __instance, ulong __state)
+			{
+				if (__instance.ship.GetType() == typeof(Station) && PLAYER.currentGame != null && __instance.ship.id != PLAYER.currentGame.homeBaseId)
+				{
+					PLAYER.currentTeam.ownedShip = __state;
+				}
+			}
+		}
+
+		//fixing: using a console on neutral stations adds the station crew as your followers if you reload the game on that station
+		[HarmonyPatch(typeof(VNavigationRev3), "Update")]
+		public class VNavigationRev3_Update
+		{
+			[HarmonyPrefix]
+			private static void Prefix(ref ulong __state)
+			{
+				if (PLAYER.currentShip.faction != PLAYER.avatar.faction && !PLAYER.debugMode)
+				{
+					__state = PLAYER.currentShip.faction;
+					PLAYER.currentShip.faction = PLAYER.avatar.faction;
+				}
+				else
+				{
+					__state = PLAYER.currentShip.faction;
+				}
+			}
+			
+			[HarmonyPostfix]
+			private static void Postfix(ulong __state)
+			{
+				PLAYER.currentShip.faction = __state;
 			}
 		}
 
@@ -1216,9 +1251,11 @@ namespace Community_Bug_Fixes
 			[HarmonyPostfix]
 			private static void Postfix(Ship __instance, ref float ___deathTimer)
 			{
+				
 				if (PLAYER.currentGame != null)
-				{ 
-					if (__instance.dockedAt != null && __instance.dockedAt.id == PLAYER.currentGame.homeBaseId && __instance.fadeOutTimer > 0f)
+				{
+					var homebaseId = PLAYER.currentGame.homeBaseId;
+					if (__instance.dockedAt != null && __instance.dockedAt.id == homebaseId && __instance.fadeOutTimer > 0f)
 					{
 						___deathTimer = 0f;
 						__instance.fadeOutTimer = -10f;
