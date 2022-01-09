@@ -1154,7 +1154,6 @@ namespace Community_Bug_Fixes
 			private static bool Prefix()
 			{
 				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-
 				if (PLAYER.currentSession.valuesOfInterest != null)
 				{
 					for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
@@ -1451,6 +1450,7 @@ namespace Community_Bug_Fixes
 				{
 					return false; //supress executing the original method
 				}
+				/*
 				if (___representative == null)
 				{					
 					PLAYER.currentSession.pause();
@@ -1468,7 +1468,7 @@ namespace Community_Bug_Fixes
 					dialogueTree.addOption("goodbye", dialogueTree2);
 					return false; //supress executing the original method
 				}
-
+				*/
 				if (___stationServices != null && ___representative.faction == 2UL)         //fixing: after using a console on a repair station it changes faction and no longer offers any repair services if you hail it.
 				{
 					___representative.faction = 5UL;
@@ -2294,8 +2294,11 @@ namespace Community_Bug_Fixes
 						//__instance.desiredDestination = __instance.GetRunAwayLoc(session, ship, console);
 						return false;
 					}
-					console.crew.goalCompleted();
-					console.crew = null;
+					if(console.crew != null)
+					{ 
+						console.crew.goalCompleted();
+						console.crew = null;
+					}
 					__instance.state = ConsoleState.idle;
 					if (__instance.isInCombat && __instance.combatDuration > 10f)
 					{
@@ -2311,6 +2314,147 @@ namespace Community_Bug_Fixes
 		}
 
 	}
+
+	[HarmonyPatch(typeof(WidgetChat), "CreateMessage")]
+	public class WidgetChat_CreateMessage
+	{
+		[HarmonyPrefix]
+		private static void Prefix( GuiElement sender, InputField ___inputField)
+		{
+			if (___inputField.inputFieldValue != "")
+			{
+				if (PLAYER.currentSession != null && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
+				{
+					if (___inputField.inputFieldValue.StartsWith("/"))
+					{
+						if (___inputField.inputFieldValue != "/")
+						{
+							char[] trimChars = new char[]
+							{
+								'/'
+							};
+							char[] separator = new char[]
+							{
+								' '
+							};
+							string[] command = ___inputField.inputFieldValue.TrimStart(trimChars).Split(separator);
+							switch (command[0].ToLower())
+							{
+								case "debug":
+									switch (command[1].ToLower())
+									{
+										case "spawn":
+											switch (command[2].ToLower())
+											{
+												case "budd":
+													BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+													if (PLAYER.currentSession.valuesOfInterest != null)
+													{
+														for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
+														{
+															if (PLAYER.currentSession.valuesOfInterest[i] == "ctp_big_station")
+															{
+																Vector2 position = PLAYER.currentSession.pointsOfInterest[i];
+																WorldActor worldActor = SHIPBAG.makeTemplate(95);
+																worldActor.id = PLAYER.currentWorld.getUID();
+																ulong id = worldActor.id;
+																worldActor.faction = 4UL;
+																worldActor.position = position;
+																worldActor.rotation = RANDOM.randomRotation();
+																worldActor.hackingAvailable = 0f;
+																worldActor.data = new CosmMetaData();
+																worldActor.data.crew = new Crew[0];
+																worldActor.dominantTeam = new CrewTeam();
+																worldActor.dominantTeam.aggroRadius = 6000f;
+																worldActor.dominantTeam.threats.Add(2UL);
+																worldActor.dominantTeam.threats.Add(3UL);
+																worldActor.dominantTeam.threats.Add(5UL);
+																Crew crew = new Crew();
+																crew.id = 0;
+																crew.name = "Budd";
+																crew.questTag = "kill_budd";
+																crew.heldItem = new Gun(19f, GunSpawnFlags.force_special);
+																crew.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
+																crew.faction = 4UL;
+																crew.factionless = false;
+																crew.team = worldActor.dominantTeam;
+																worldActor.data.addCrew(crew);
+																Crew crew2 = new Crew();
+																crew2.name = "Greg";
+																crew2.id = 1;
+																crew2.questTag = "gary_v_greg";
+																crew2.heldItem = new Gun(19f, GunSpawnFlags.force_shotgun);
+																crew2.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
+																crew2.faction = 4UL;
+																crew2.factionless = false;
+																crew2.team = worldActor.dominantTeam;
+																worldActor.data.addCrew(crew2);
+																for (int j = 0; j < 4; j++)
+																{
+																	Crew crew3 = new Crew();
+																	crew3.id = (byte)(j + 2);
+																	crew3.outfit(18f, 15f);
+																	crew3.faction = 4UL;
+																	crew3.factionless = false;
+																	crew3.team = worldActor.dominantTeam;
+																	worldActor.data.addCrew(crew3);
+																}
+																worldActor.data.buildStorage(worldActor);
+																if (worldActor.data.storage != null)
+																{
+																	for (int j = 0; j < 500; j++)
+																	{
+																		worldActor.data.addItem(new InventoryItem(InventoryItemType.grey_goo));
+																	}
+																}
+																Ship ship = worldActor.getShip(0);
+																if (PLAYER.currentShip != null)
+																{
+																	worldActor.dominantTeam.focus = PLAYER.currentShip.id;
+																	worldActor.dominantTeam.goalType = ConsoleGoalType.kill_target;
+																}
+																SCREEN_MANAGER.widgetChat.AddMessage("Budd ship has arrived!", MessageTarget.Command);
+																PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
+																ship.cosm.init();
+																ship.cosm.rearm = true;
+																foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
+																{
+																	if (triggerEvent.GetType() == typeof(KillBuddQuestRev2))
+																	{
+																		(triggerEvent as KillBuddQuestRev2).buddID = id;
+																	}
+																	if (triggerEvent.GetType() == typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2"))
+																	{
+																		//(triggerEvent as GaryVsGregRev2).buddID = id;
+																		typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2").GetField("buddID", flags).SetValue(triggerEvent, id);
+																	}
+																}
+															}
+														}
+													}
+													break;
+												default:
+													SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+													break;
+											}
+
+											break;
+										default:
+											SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+											break;
+									}
+									break;
+								default:
+									break;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+
 	//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
 	public static class CrewExtensions
 	{
