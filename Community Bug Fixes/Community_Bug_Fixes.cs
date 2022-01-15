@@ -27,506 +27,149 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
-		//fixing: deleting character profile doesn't delete all the data form database.
-		[HarmonyPatch(typeof(CHARACTER_DATA), "deleteCharacter")]
-		public class CHARACTER_DATA_deleteCharacter
+		//adding a debug command to spawn budd's ship.
+		[HarmonyPatch(typeof(WidgetChat), "CreateMessage")]
+		public class WidgetChat_CreateMessage
 		{
 			[HarmonyPrefix]
-			private static void Prefix(string name)
+			private static void Prefix(GuiElement sender, InputField ___inputField)
 			{
-				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-				var dBCon = typeof(CHARACTER_DATA).GetField("dBCon", flags).GetValue(null) as SQLiteConnection;
-				new SQLiteCommand("DELETE from cargo where name = '" + name + "'", dBCon).ExecuteNonQuery();
-				new SQLiteCommand("DELETE from continues where name = '" + name + "'", dBCon).ExecuteNonQuery();
-				new SQLiteCommand("DELETE from designs where name = '" + name + "'", dBCon).ExecuteNonQuery();
-				new SQLiteCommand("DELETE from gates where name = '" + name + "'", dBCon).ExecuteNonQuery();
-				new SQLiteCommand("DELETE from resources where name = '" + name + "'", dBCon).ExecuteNonQuery();
-				new SQLiteCommand("DELETE from shipresearch where name = '" + name + "'", dBCon).ExecuteNonQuery();
-				new SQLiteCommand("DELETE from turretprefs where name = '" + name + "'", dBCon).ExecuteNonQuery();
-				new SQLiteCommand("DELETE from routeprefs where name = '" + name + "'", dBCon).ExecuteNonQuery();
-				new SQLiteCommand("DELETE from icons where name = '" + name + "'", dBCon).ExecuteNonQuery();
-			}
-		}
-
-
-		//fixing: several conditions which resulted in duplicating crew.
-		[HarmonyPatch(typeof(MicroCosm), "updateCrew")]
-		public class MicroCosm_updateCrew
-		{
-			[HarmonyPrefix]
-			private static void Prefix(MicroCosm __instance)
-			{
-				foreach (Crew crew in __instance.crew.Values)
+				if (___inputField.inputFieldValue != "")
 				{
-					if (!crew.isPlayer && crew.currentCosm == __instance && crew.state == CrewState.dead && __instance.crew.Values.Where((item) => item.name == crew.name && item.state != CrewState.dead).Any())
+					if (PLAYER.currentSession != null && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
 					{
-						Crew crew2;
-						__instance.crew.TryRemove(crew.id, out crew2);
-					}
-					if (!crew.isPlayer && crew.currentCosm == __instance && crew.state != CrewState.dead && __instance.crew.Values.Where((item) => item != crew && item.faction == 2UL && crew.faction == 2UL && item.name == crew.name && item.state != CrewState.dead).Any())
-					{
-						Crew crew2;
-						__instance.crew.TryRemove(crew.id, out crew2);
-					}
-				}
-			}
-		}
-		
-
-		//fixing: 
-		/*
-		[HarmonyPatch(typeof(CrewTeamWidget), "update")]
-		public class CrewTeamWidget_update
-		{
-			[HarmonyPrefix]
-			private static bool Prefix(CrewTeamWidget __instance, ConcurrentQueue<Object> ___reports)
-			{
-				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-				while (___reports.TryDequeue(out var result))
-				{
-
-					if (((IEnumerable<Crew>)__instance.crew).Contains<Crew>((Crew)typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport").GetField("crew", flags).GetValue(result)))
-					{
-						//__instance.readReport(result);
-						var args = new object[] { result };
-						typeof(LogisticsScreenRev3).GetMethod("readReport", flags, null, new Type[] { typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport") }, null).Invoke(__instance, args);			
-					}
-					else
-					{
-						bool flag = false;
-						for (int index = 0; index < __instance.crew.Length; ++index)
+						if (___inputField.inputFieldValue.StartsWith("/"))
 						{
-							Crew crew = (Crew)typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport").GetField("crew", flags).GetValue(result);
-							if (__instance.crew[index] == null && !__instance.names.Contains(crew.name))
+							if (___inputField.inputFieldValue != "/")
 							{
-								flag = true;
-								__instance.crew[index] = crew;
-								break;
-							}
-						}
-						if (flag)
-						{
-							//__instance.readReport(result);
-							var args = new object[] { result };
-							typeof(LogisticsScreenRev3).GetMethod("readReport", flags, null, new Type[] { typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport") }, null).Invoke(__instance, args);
-						}					
-					}
-				}
-				foreach (Crew dead in __instance.crew)
-				{
-					if (dead != null && dead.state == CrewState.dead)
-						__instance.handleDeath(dead);
-				}
-				return false;
-			}
-		}
-		*/
-
-		//fixing: crystal seed tooltip is not updating if you select a crystal with 0% seed value after a crystal with more than 0% seed value
-		[HarmonyPatch(typeof(Dig), "aim")]
-		public class Dig_aim
-		{
-			[HarmonyPostfix]
-			private static void Postfix(MicroCosm cosm, Vector2 target, TipStatSmall ___stat3)
-			{
-				Rectangle value = new Rectangle((int)target.X - 1, (int)target.Y - 1, 2, 2);
-				foreach (CrystalMonster crystalMonster in cosm.crystals)
-				{
-					if (crystalMonster.bbox.Intersects(value))
-					{				
-						float num3 = (float)(crystalMonster.seedE + crystalMonster.seedM);
-						if (num3 <= 0f)
-						{
-							___stat3.updateStat("-");
-						}
-						break;
-					}
-				}
-			}
-		}
-
-		//fixing: planted crystals are no longer reproducing after a save/reload
-		//fixing: if you save and reload the game after planting a crystal and before it grows a root it will no longer grow
-		[HarmonyPatch(typeof(CrystalMonster))]
-		[HarmonyPatch(MethodType.Constructor)]
-		[HarmonyPatch(new Type[] { typeof(BinaryReader), typeof(int) })]
-		public class CrystalMonster_CrystalMonster
-		{
-
-			[HarmonyPostfix]
-			private static void Postfix(CrystalMonster __instance)
-			{
-				int activeroots = 0;
-				for (int i = 0; i < __instance.genome.tiles.Length; i++)
-				{
-					for (int j = 0; j < __instance.genome.tiles.Length; j++) // in vanilla "spreadCostE", "spreadCostm" stats are not lodead  with game reload an will remain 0
-					{
-						CrystalGene crystalGene = __instance.genome.tiles[i][j];
-						if (crystalGene != null)
-						{
-							if (crystalGene.crystalType == CrystalType.growth)
-							{
-								__instance.spreadCostE += crystalGene.cost;
-								__instance.spreadCostM += crystalGene.cost;
-							}
-							if (crystalGene.crystalType == CrystalType.shell)
-							{
-								__instance.spreadCostE += 90;
-								__instance.spreadCostM += 90;
-							}
-							if (crystalGene.crystalType == CrystalType.battery)
-							{
-								__instance.spreadCostM += 10;
-								__instance.spreadCostE += 90;
-							}
-							if (crystalGene.crystalType == CrystalType.root && crystalGene.active == true)
-							{
-								activeroots++;
-							}
-						}
-					}
-				}
-				if (activeroots == 0) 
-				{
-					for (int i = 0; i < __instance.genome.tiles.Length; i++)
-					{
-						for (int j = 0; j < __instance.genome.tiles.Length; j++)
-						{
-							CrystalGene crystalGene = __instance.genome.tiles[i][j];
-							if (crystalGene != null)
-							{
-								 if(crystalGene.crystalType != CrystalType.shell)
-								 { 
-									__instance.minerals -= crystalGene.built;
-								 }
-								 else
-								 {
-									if (crystalGene.built != 0)
-										__instance.minerals += 80; // in vanilla "minerals" stat is not saved/lodead  with game reload
-								}
-							}
-						}
-					}
-					if (__instance.minerals < 0)
-					{
-						__instance.minerals = 0;
-					}
-				}
-			}
-		}
-
-		//fixing: crew is firing on target out of range of their weapon and not trying to get in range
-		[HarmonyPatch(typeof(Crew), "testLOS")] 
-		public class Crew_testLOS
-		{
-			[HarmonyPostfix]
-			private static void Postfix(Crew __instance, ref bool __result, Vector2 target, MicroCosm cosm)
-			{
-				if (__instance.heldItem != null && __instance.heldItem.GetType() == typeof(Gun))
-				{
-					float num = (__instance.heldItem as Gun).range;
-					float num2 = Vector2.Distance(__instance.position, target);
-					if (num2 > num)
-					{
-						__result = false;
-					}
-				}
-			}
-		}
-
-		//fixing: followers are not equiping their weapon and attacking a monster if they see one and have some other tool equiped.
-		//fixing: a rare crash while crew firing their weapon
-		[HarmonyPatch(typeof(Crew), "attack")]
-		public class Crew_attack
-		{
-
-			[HarmonyPrefix]
-			private static bool Prefix(Crew __instance, float elapsed,ref float ___floatRegister, ref Vector2 ___strafeSpot, ref bool ___targetLOS)
-			{
-				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;			
-				{
-					
-					if (__instance.goal.GetType() == typeof(Crew))
-					{
-						Crew crew = __instance.goal as Crew;
-						if (crew.state == CrewState.dead || crew.currentCosm != __instance.currentCosm || !__instance.currentCosm.crew.ContainsKey(crew.id))
-						{
-							__instance.goalCompleted();
-							return false;
-						}
-						if (__instance.heldSkill == null || !(__instance.heldSkill.GetType() == typeof(HitScanShoot)))
-						{
-							//__instance.selectGun();
-							typeof(Crew).GetMethod("selectGun", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
-							return false;
-						}
-						___floatRegister += elapsed;
-						if (___floatRegister > 0.3f)
-						{
-							___floatRegister = 0f;
-							//___targetLOS = __instance.testLOS(crew.position, __instance.currentCosm);
-							var args = new object[] { crew.position, __instance.currentCosm };
-							___targetLOS = (bool)typeof(Crew).GetMethod("testLOS", flags, null, new Type[] { typeof(Vector2), typeof(MicroCosm) }, null).Invoke(__instance, args);
-						}
-						if (___targetLOS)
-						{
-							__instance.target = crew.position;
-							Vector2 vector = __instance.target - __instance.position;
-							__instance.rotation = (float)Math.Atan2((double)vector.Y, (double)vector.X) + 1.5707964f;
-							__instance.heldSkill.activate(__instance, __instance.currentCosm, __instance.target);
-							if (___strafeSpot == Vector2.Zero)
-							{
-								int num = 0;
-								int num2 = __instance.currentCosm.nodeAt(__instance.position);
-								if (num2 == -1)
+								char[] trimChars = new char[]
 								{
-									return false;
-								}
-								SmartNode smartNode = __instance.currentCosm.smartNodes[num2];
-								for (int i = 0; i < 8; i++)
+								'/'
+								};
+								char[] separator = new char[]
 								{
-									if (smartNode.neighbors[i] != null && smartNode.neighbors[i].passable)
-									{
-										num++;
-									}
-								}
-								int num3 = RANDOM.Next(num);
-								int num4 = -1;
-								int num5 = -1;
-								//fixing: a rare crash while crew firing their weapon
-								while (num5 < num3 && num4 < 7)
+								' '
+								};
+								string[] command = ___inputField.inputFieldValue.TrimStart(trimChars).Split(separator);
+								switch (command[0].ToLower())
 								{
-									num4++;
-									if (smartNode.neighbors[num4] != null && smartNode.neighbors[num4].passable)
-									{
-										num5++;
-									}
-								}
-								if (smartNode.neighbors[num4] == null || !smartNode.neighbors[num4].passable)
-								{
-									return false;
-								}
-								___strafeSpot = __instance.currentCosm.walkingLocation(smartNode.neighbors[num4].index);
-								return false;
-							}
-							else
-							{
-								float num6 = __instance.speed / 3f * elapsed;
-								if (Vector2.Distance(__instance.position, ___strafeSpot) < num6)
-								{
-									__instance.position = ___strafeSpot;
-									___strafeSpot = Vector2.Zero;
-									return false;
-								}
-								__instance.position += Vector2.Normalize(___strafeSpot - __instance.position) * num6;
-								return false;
-							}
-						}
-						else
-						{
-							___strafeSpot = Vector2.Zero;
-							if (__instance.path != null && __instance.path.Count > 1)
-							{
-								if (___floatRegister == 0f)
-								{
-									__instance.target = __instance.currentCosm.walkingLocation(__instance.path.First<int>());
-									if (Vector2.Distance(__instance.target, crew.position) > 256f)
-									{
-										int num7 = (int)(crew.position.X / 16f);
-										int num8 = (int)(crew.position.Y / 16f);
-										int d = num7 + num8 * __instance.currentCosm.width;
-										__instance.path = __instance.plotTilePath(d, 1);
-										if (__instance.path == null)
+									case "debug":
+										switch (command[1].ToLower())
 										{
-											return false;
-										}
-										__instance.ETA = __instance.path.Count;
-									}
-								}
-								__instance.goTo(1f, elapsed);
-								return false;
-							}
-							if (___floatRegister == 0f)
-							{
-								int num9 = (int)(crew.position.X / 16f);
-								int num10 = (int)(crew.position.Y / 16f);
-								int d2 = num9 + num10 * __instance.currentCosm.width;
-								try
-								{
-									__instance.path = __instance.plotTilePath(d2, 1);
-								}
-								catch
-								{
-									return false;
-								}
-								if (__instance.path == null)
-								{
-									return false;
-								}
-								__instance.ETA = __instance.path.Count;
-								return false;
-							}
-						}
-					}
-					else if (__instance.goal.GetType() == typeof(Monster))
-					{
-						Monster monster = __instance.goal as Monster;
-						if (monster.dead)
-						{
-							__instance.goalCompleted();
-							return false;
-						}
+											case "spawn":
+												switch (command[2].ToLower())
+												{
+													case "budd":
+														BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+														if (PLAYER.currentSession.valuesOfInterest != null)
+														{
+															for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
+															{
+																if (PLAYER.currentSession.valuesOfInterest[i] == "ctp_big_station")
+																{
+																	Vector2 position = PLAYER.currentSession.pointsOfInterest[i];
+																	WorldActor worldActor = SHIPBAG.makeTemplate(95);
+																	worldActor.id = PLAYER.currentWorld.getUID();
+																	ulong id = worldActor.id;
+																	worldActor.faction = 4UL;
+																	worldActor.position = position;
+																	worldActor.rotation = RANDOM.randomRotation();
+																	worldActor.hackingAvailable = 0f;
+																	worldActor.data = new CosmMetaData();
+																	worldActor.data.crew = new Crew[0];
+																	worldActor.dominantTeam = new CrewTeam();
+																	worldActor.dominantTeam.aggroRadius = 6000f;
+																	worldActor.dominantTeam.threats.Add(2UL);
+																	worldActor.dominantTeam.threats.Add(3UL);
+																	worldActor.dominantTeam.threats.Add(5UL);
+																	Crew crew = new Crew();
+																	crew.id = 0;
+																	crew.name = "Budd";
+																	crew.questTag = "kill_budd";
+																	crew.heldItem = new Gun(19f, GunSpawnFlags.force_special);
+																	crew.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
+																	crew.faction = 4UL;
+																	crew.factionless = false;
+																	crew.team = worldActor.dominantTeam;
+																	worldActor.data.addCrew(crew);
+																	Crew crew2 = new Crew();
+																	crew2.name = "Greg";
+																	crew2.id = 1;
+																	crew2.questTag = "gary_v_greg";
+																	crew2.heldItem = new Gun(19f, GunSpawnFlags.force_shotgun);
+																	crew2.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
+																	crew2.faction = 4UL;
+																	crew2.factionless = false;
+																	crew2.team = worldActor.dominantTeam;
+																	worldActor.data.addCrew(crew2);
+																	for (int j = 0; j < 4; j++)
+																	{
+																		Crew crew3 = new Crew();
+																		crew3.id = (byte)(j + 2);
+																		crew3.outfit(18f, 15f);
+																		crew3.faction = 4UL;
+																		crew3.factionless = false;
+																		crew3.team = worldActor.dominantTeam;
+																		worldActor.data.addCrew(crew3);
+																	}
+																	worldActor.data.buildStorage(worldActor);
+																	if (worldActor.data.storage != null)
+																	{
+																		for (int j = 0; j < 500; j++)
+																		{
+																			worldActor.data.addItem(new InventoryItem(InventoryItemType.grey_goo));
+																		}
+																	}
+																	Ship ship = worldActor.getShip(0);
+																	if (PLAYER.currentShip != null)
+																	{
+																		worldActor.dominantTeam.focus = PLAYER.currentShip.id;
+																		worldActor.dominantTeam.goalType = ConsoleGoalType.kill_target;
+																	}
+																	SCREEN_MANAGER.widgetChat.AddMessage("Budd ship has arrived!", MessageTarget.Command);
+																	PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
+																	ship.cosm.init();
+																	ship.cosm.rearm = true;
+																	foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
+																	{
+																		if (triggerEvent.GetType() == typeof(KillBuddQuestRev2))
+																		{
+																			(triggerEvent as KillBuddQuestRev2).buddID = id;
+																		}
+																		if (triggerEvent.GetType() == typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2"))
+																		{
+																			//(triggerEvent as GaryVsGregRev2).buddID = id;
+																			typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2").GetField("buddID", flags).SetValue(triggerEvent, id);
+																		}
+																	}
+																}
+															}
+														}
+														break;
+													default:
+														SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+														break;
+												}
 
-						if (__instance.heldSkill == null || !(__instance.heldSkill.GetType() == typeof(HitScanShoot)))
-						{
-							//fixing: followers are not equiping their weapon and attacking a monster if they see one and have some other tool equiped.
-							typeof(Crew).GetMethod("selectGun", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
-							return false;
-						}
-
-						if (__instance.heldSkill != null && __instance.heldSkill.GetType() == typeof(HitScanShoot))
-						{
-							
-							___floatRegister += elapsed;
-							if (___floatRegister > 0.3f)
-							{
-								___floatRegister = 0f;
-								//___targetLOS = __instance.testLOS(monster.position, __instance.currentCosm);
-								var args = new object[] { monster.position, __instance.currentCosm };
-								___targetLOS = (bool)typeof(Crew).GetMethod("testLOS", flags, null, new Type[] { typeof(Vector2), typeof(MicroCosm) }, null).Invoke(__instance, args);
-
-							}
-							if (___targetLOS)
-							{
-								__instance.target = monster.position;
-								Vector2 vector2 = __instance.target - __instance.position;
-								__instance.rotation = (float)Math.Atan2((double)vector2.Y, (double)vector2.X) + 1.5707964f;
-								__instance.heldSkill.activate(__instance, __instance.currentCosm, __instance.target);
-								if (___strafeSpot == Vector2.Zero)
-								{
-									int num11 = 0;
-									SmartNode smartNode2 = __instance.currentCosm.smartNodes[__instance.currentCosm.nodeAt(__instance.position)];
-									for (int j = 0; j < 8; j++)
-									{
-										if (smartNode2.neighbors[j] != null && smartNode2.neighbors[j].passable)
-										{
-											num11++;
+												break;
+											default:
+												SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+												break;
 										}
-									}
-									int num12 = RANDOM.Next(num11);
-									int num13 = -1;
-									int num14 = -1;
-									//fixing: a rare crash while crew firing their weapon
-									while (num14 < num12 && num13 < 7)
-									{
-										num13++;
-										if (smartNode2.neighbors[num13] != null && smartNode2.neighbors[num13].passable)
-										{
-											num14++;
-										}
-									}
-									if (smartNode2.neighbors[num13] == null || !smartNode2.neighbors[num13].passable)
-									{
-										return false;
-									}
-									___strafeSpot = __instance.currentCosm.walkingLocation(smartNode2.neighbors[num13].index);
-									return false;
-								}
-								else
-								{
-									float num15 = __instance.speed / 3f * elapsed;
-									if (Vector2.Distance(__instance.position, ___strafeSpot) < num15)
-									{
-										__instance.position = ___strafeSpot;
-										___strafeSpot = Vector2.Zero;
-										return false;
-									}
-									__instance.position += Vector2.Normalize(___strafeSpot - __instance.position) * num15;
-									return false;
-								}
-							}
-							else
-							{
-								___strafeSpot = Vector2.Zero;
-								if (__instance.path != null && __instance.path.Count > 1)
-								{
-									if (___floatRegister == 0f)
-									{
-										__instance.target = __instance.currentCosm.walkingLocation(__instance.path.First<int>());
-										if (Vector2.Distance(__instance.target, monster.position) > 256f)
-										{
-											int num16 = (int)(monster.position.X / 16f);
-											int num17 = (int)(monster.position.Y / 16f);
-											int d3 = num16 + num17 * __instance.currentCosm.width;
-											__instance.path = __instance.plotTilePath(d3, 1);
-											if (__instance.path == null)
-											{
-												return false;
-											}
-											__instance.ETA = __instance.path.Count;
-										}
-									}
-									__instance.goTo(1f, elapsed);
-									return false;
-								}
-								if (___floatRegister == 0f)
-								{
-									int num18 = (int)(monster.position.X / 16f);
-									int num19 = (int)(monster.position.Y / 16f);
-									int d4 = num18 + num19 * __instance.currentCosm.width;
-									try
-									{
-										__instance.path = __instance.plotTilePath(d4, 1);
-									}
-									catch
-									{
-										return false;
-									}
-									if (__instance.path == null)
-									{
-										return false;
-									}
-									__instance.ETA = __instance.path.Count;
-									return false;
+										break;
+									default:
+										break;
 								}
 							}
 						}
 					}
-					else
-					{
-						__instance.goalFailed();
-					}
-					return false;
 				}
 			}
 		}
 
-		//fixing: a rare crash on AI trying to use turret metrics even if the ship has no turrets
-		//(the code in "if (this.avgBulletSpeed > 0f)" block needs a null check for shipConsoleMetric.turrets in vanilla)
-		[HarmonyPatch(typeof(ConsoleThought), "FiringActions")]
-		public class ConsoleThought_FiringActions
-		{
-
-			[HarmonyPrefix]
-			private static void Prefix(Ship ship, Console console, ref float ___avgBulletSpeed, ref float __state)
-			{
-
-				__state = ___avgBulletSpeed;
-				if (ship.shipMetric.ConsoleMetrics[console]?.turrets == null)
-				{
-					___avgBulletSpeed = 0f;
-				}
-			}
-
-			[HarmonyPostfix]
-			private static void Postfix(ref float ___avgBulletSpeed, float __state)
-			{
-				___avgBulletSpeed = __state;
-			}
-		}
 
 		//fixing: gives player instructions how to properly use repair station.
-		[HarmonyPatch(typeof(CoOpSpRpG.Console), "givePlayerControl")] 
+		[HarmonyPatch(typeof(CoOpSpRpG.Console), "givePlayerControl")]
 		public class Console_givePlayerControl
 		{
 
@@ -551,17 +194,801 @@ namespace Community_Bug_Fixes
 					}
 				}
 			}
-			//fixing: using a console on neutral stations adds the station crew as your followers if you reload the game on that station
-			[HarmonyPostfix]
-			private static void Postfix(CoOpSpRpG.Console __instance, ulong __state)
+		}
+
+		//fixing: Unable to recruit Vaal after conversation with her. (fixing already bugged saves)
+		[HarmonyPatch(typeof(AgentTracker), "getBarAgents")]
+		public class AgentTracker_getBarAgents
+		{
+
+			[HarmonyPrefix]
+			private static void Prefix(AgentTracker __instance, ref List<BarAgentDrawer> __result, ulong stationID, Point grid)
 			{
-				if (__instance.ship.GetType() == typeof(Station) && PLAYER.currentGame != null && __instance.ship.id != PLAYER.currentGame.homeBaseId)
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+				foreach (NPCAgent npcagent in __instance.allAgents)
 				{
-					PLAYER.currentTeam.ownedShip = __state;
+					if (npcagent.name == "Vaal")
+					{
+						var field = typeof(ValAgent).GetField("adopted", flags);
+						var adopted = (bool)field.GetValue(npcagent);
+						if (!__instance.unlockedFriends.Contains(npcagent) && adopted == true)
+						{
+							npcagent.canJoin = true;
+							__instance.adoptAgent(npcagent.name);
+							bool found = false;
+							if (PLAYER.currentGame != null && PLAYER.currentGame.activeQuests != null)
+							{
+								foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
+								{
+									if (triggerEvent.name == "find_crew")
+									{
+										triggerEvent.stage += 1U;
+										found = true;
+									}
+								}
+							}
+							if (CHARACTER_DATA.maxCrew == 0)
+							{
+								PLAYER.currentGame.activeQuests.Add(new CloningReminder(found));
+							}
+						}
+					}
 				}
 			}
 		}
 
+		//fixing: using logistics room on a ship allows unintended use of logistics commands on the command source ship.
+		//qol: scraping a ship at your homebase will now return 100% of resources if the ship wasn build by the player instead of captured from another faction.
+		[HarmonyPatch(typeof(LogisticsScreenRev3), "doRightClick")]
+		public class LogisticsScreenRev3_doRightClick
+		{
+
+			[HarmonyPrefix]
+			private static void Prefix(LogisticsScreenRev3 __instance, ref string opt, Ship ___selected)
+			{
+				
+				if (opt != "" && ___selected.id == PLAYER.currentShip.id && ___selected.id != PLAYER.currentGame.homeBaseId)
+				{
+					SCREEN_MANAGER.widgetChat.AddMessage("Invalid target. Command target ship has to be distinct from command source ship.", MessageTarget.Ship);
+					opt = "";
+				}
+
+				if (opt == "Scrap")
+				{
+					if (PLAYER.currentSession.GetType() == typeof(BattleSessionSC))
+					{
+						(PLAYER.currentSession as BattleSessionSC).requestScrap(___selected.id);
+					}
+					else
+					{
+						__instance.stashResources(___selected);
+						if (___selected.cosm != null)
+						{
+							if (___selected.cosm.cargoBays.Count <= 0)
+							{
+								goto IL_15D;
+							}
+							using (List<CargoBay>.Enumerator enumerator = ___selected.cosm.cargoBays.GetEnumerator())
+							{
+								while (enumerator.MoveNext())
+								{
+									CargoBay cargoBay = enumerator.Current;
+									if (cargoBay.storage != null)
+									{
+										for (InventoryItem firstItem = cargoBay.storage.getFirstItem(); firstItem != null; firstItem = cargoBay.storage.getFirstItem())
+										{
+											PROCESS_REGISTER.currentCosm.threadDumpCargo(firstItem);
+										}
+									}
+								}
+								goto IL_15D;
+							}
+						}
+						if (___selected.data != null && ___selected.data.storage != null)
+						{
+							foreach (Storage storage2 in ___selected.data.storage)
+							{
+								for (InventoryItem firstItem2 = storage2.getFirstItem(); firstItem2 != null; firstItem2 = storage2.getFirstItem())
+								{
+									PROCESS_REGISTER.currentCosm.threadDumpCargo(firstItem2);
+								}
+							}
+						}
+					IL_15D:
+						Dictionary<InventoryItemType, int> dictionary = new Dictionary<InventoryItemType, int>();
+						if (___selected.ownershipHistory.Exists((faction) => faction != CONFIG.playerFaction && faction != CONFIG.deadShipFaction && faction != ___selected.id))
+						{
+							dictionary = TILEBAG.scrapValue(___selected.botD);
+						}
+						else
+						{
+							//qol: scraping a ship at your homebase will now return 100% of resources if the ship wasn build by the player instead of captured from another faction.
+							Dictionary<InventoryItemType, float> newdictionary = new Dictionary<InventoryItemType, float>();
+							foreach (Color index in ___selected.botD)
+							{
+								if (index.A > 20)
+								{
+									Module module = TILEBAG.getModule(index);
+									if (module != null)
+									{
+										Dictionary<InventoryItemType, float> resources = TILEBAG.GetResources(module);
+										foreach (InventoryItemType inventoryItemType in resources.Keys)
+										{
+											if (newdictionary.ContainsKey(inventoryItemType))
+											{
+												Dictionary<InventoryItemType, float> dictionary3 = newdictionary;
+												InventoryItemType key = inventoryItemType;
+												dictionary3[key] += resources[inventoryItemType];
+											}
+											else
+											{
+												newdictionary.Add(inventoryItemType, resources[inventoryItemType]);
+											}
+										}
+									}
+								}
+							}
+							foreach (KeyValuePair<InventoryItemType, float> keyValuePair in newdictionary)
+							{
+								dictionary.Add(keyValuePair.Key, (int)Math.Round((double)keyValuePair.Value));
+							}
+
+
+						}
+						ulong num = 0UL;
+						___selected.performUndock(PLAYER.currentSession);
+						foreach (InventoryItemType inventoryItemType in dictionary.Keys)
+						{
+							ulong num2 = (ulong)((long)dictionary[inventoryItemType]);
+							num += num2;
+							long amount = CHARACTER_DATA.getResource(inventoryItemType) + (long)num2;
+							CHARACTER_DATA.setResource(inventoryItemType, amount);
+							PLAYER.currentShip.floatyText.Enqueue("+" + num2.ToString() + " " + inventoryItemType.ToString());
+						}
+						num /= 50UL;
+						CHARACTER_DATA.exp += num;
+						PLAYER.currentSession.despawnShip(___selected);
+					}
+					opt = "";
+				}
+
+				///fixed
+				//fixing: unable to use logistics room to stash resources from homebase cargobays to ship building resources pool. (now you can use "Unload cargo" on your homebase)
+				/*
+				if (opt == "Unload cargo" && ___selected.id == PLAYER.currentGame.homeBaseId && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
+				{
+					var shipStores = CHARACTER_DATA.getCargoTabs();
+					List<string> cargoNames = CHARACTER_DATA.getCargoNames();
+					BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+					if (shipStores.Count > 0)
+					{
+						for (int i = 0; i < shipStores.Count; i++)
+						{
+							var openStorage = shipStores[i];
+
+							string[] storageTabNames;
+							if (cargoNames.Count != shipStores.Count)
+							{
+								storageTabNames = new string[shipStores.Count];
+								for (int j = 0; j < shipStores.Count; j++)
+								{
+									storageTabNames[j] = "Tab " + j.ToString();
+								}
+							}
+							else
+							{
+								storageTabNames = cargoNames.ToArray();
+							}
+							var args = new object[] { openStorage };
+							typeof(LogisticsScreenRev3).GetMethod("stashResources", flags, null, new Type[] { typeof(Storage) }, null).Invoke(__instance, args);
+							CHARACTER_DATA.storeCargoTab(i, storageTabNames[i], args[0] as Storage);
+						}
+						opt = "";
+					}
+				}
+				///fixed
+				// scraping a ship with cargo get's the cargo deleted (now it will be placed as cargo pods in space instead)
+				if (opt == "Scrap" && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
+				{
+					var ship = ___selected;
+					MicroCosm cosm = PROCESS_REGISTER.getCosm(ship);
+					if (cosm.cargoBays != null && cosm.cargoBays.Count > 0)
+					{
+						for (int j = 0; j < cosm.cargoBays.Count; j++)
+						{
+							if (cosm.cargoBays[j].storage != null)
+							{
+								if (cosm.cargoBays[j].storage.inventory == null)
+								{
+									return;
+								}
+								for (int i = 0; i < cosm.cargoBays[j].storage.inventory.Length; i++)
+								{
+									if (cosm.cargoBays[j].storage.inventory[i] != null)
+									{
+										while (cosm.cargoBays[j].storage.inventory[i] != null)
+										{
+											InventoryItem item = cosm.cargoBays[j].storage.getItem(i);
+											if (item != null)
+											{
+												CargoPod cargoPod = new CargoPod(item, ship.position);
+												CargoPod cargoPod2 = cargoPod;
+												cargoPod2.position.X = cargoPod2.position.X + ((float)(RANDOM.NextDouble() * 100.0) - 50f);
+												CargoPod cargoPod3 = cargoPod;
+												cargoPod3.position.Y = cargoPod3.position.Y + ((float)(RANDOM.NextDouble() * 100.0) - 50f);
+												PLAYER.currentSession.cargo.Add(cargoPod);
+												PLAYER.currentSession.cargoDetection(cargoPod.position, true);
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				*/
+			}
+		}
+
+		//fixing: unable to use logistics room to stash resources from homebase cargobays to ship building resources pool. (now you can use "Unload cargo" on your homebase)
+		[HarmonyPatch(typeof(LogisticsScreenRev3), "updateInput")]
+		public class LogisticsScreenRev3_updateInput
+		{
+			[HarmonyPrefix]
+			private static void Prefix(ref MouseState __state, MouseState ___oldMouse)
+			{
+				__state = ___oldMouse;
+			}
+
+
+			[HarmonyPostfix]
+			private static void Postfix(LogisticsScreenRev3 __instance, MouseState __state, bool ___drawSpawn, bool ___pause, ref DropDown ___activeMenu, ref Ship ___hover, ref Ship ___selected, Vector2 ___mousePos)
+			{
+				if (!___drawSpawn && !___pause && Mouse.GetState().RightButton == Microsoft.Xna.Framework.Input.ButtonState.Released && __state.RightButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && ___activeMenu == null)
+				{
+					if (___hover == null)
+					{
+						Rectangle clickPos = new Rectangle((int)___mousePos.X, (int)___mousePos.Y, 1, 1);
+						if (clickPos.Intersects(PLAYER.currentShip.bBox) && PLAYER.currentShip.id == PLAYER.currentGame.homeBaseId)
+						{
+							___hover = PLAYER.currentShip;
+						}						
+						if (PLAYER.currentShip == ___hover)
+						{
+							___activeMenu = new DropDown(___mousePos);
+							if ((___hover.cosm != null && ___hover.cosm.cargoBays.Count > 0) || (___hover.data != null && ___hover.data.storage != null))
+							{
+								___activeMenu.addOption("Unload cargo", null);
+							}
+							___selected = ___hover;
+						}
+					}
+				}
+
+			}
+		}
+
+		[HarmonyPatch(typeof(HailAnimation), "setupPlayerHailSend")]
+		public class HailAnimation_setupPlayerHailSend
+		{
+			[HarmonyPrefix]
+			private static void Prefix(Crew ___representative, List<ResponseImmediateAction> ___results, List<StationServices> ___stationServices)
+			{
+				if (___stationServices != null && ___representative.faction == 2UL)         //fixing: after using a console on a repair station it changes faction and no longer offers any repair services if you hail it.
+				{
+					___representative.faction = 5UL;
+				}
+			}
+		}
+		/*obsolete
+		/// <summary>
+		/// fixed
+		/// </summary>
+				//fixing: deleting character profile doesn't delete all the data form database.
+				[HarmonyPatch(typeof(CHARACTER_DATA), "deleteCharacter")]
+				public class CHARACTER_DATA_deleteCharacter
+				{
+					[HarmonyPrefix]
+					private static void Prefix(string name)
+					{
+						BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+						var dBCon = typeof(CHARACTER_DATA).GetField("dBCon", flags).GetValue(null) as SQLiteConnection;
+						new SQLiteCommand("DELETE from cargo where name = '" + name + "'", dBCon).ExecuteNonQuery();
+						new SQLiteCommand("DELETE from continues where name = '" + name + "'", dBCon).ExecuteNonQuery();
+						new SQLiteCommand("DELETE from designs where name = '" + name + "'", dBCon).ExecuteNonQuery();
+						new SQLiteCommand("DELETE from gates where name = '" + name + "'", dBCon).ExecuteNonQuery();
+						new SQLiteCommand("DELETE from resources where name = '" + name + "'", dBCon).ExecuteNonQuery();
+						new SQLiteCommand("DELETE from shipresearch where name = '" + name + "'", dBCon).ExecuteNonQuery();
+						new SQLiteCommand("DELETE from turretprefs where name = '" + name + "'", dBCon).ExecuteNonQuery();
+						new SQLiteCommand("DELETE from routeprefs where name = '" + name + "'", dBCon).ExecuteNonQuery();
+						new SQLiteCommand("DELETE from icons where name = '" + name + "'", dBCon).ExecuteNonQuery();
+					}
+				}
+
+		/// <summary>
+		/// fixed
+		/// </summary>
+				//fixing: several conditions which resulted in duplicating crew.
+				[HarmonyPatch(typeof(MicroCosm), "updateCrew")]
+				public class MicroCosm_updateCrew
+				{
+					[HarmonyPrefix]
+					private static void Prefix(MicroCosm __instance)
+					{
+						foreach (Crew crew in __instance.crew.Values)
+						{
+							if (!crew.isPlayer && crew.currentCosm == __instance && crew.state == CrewState.dead && __instance.crew.Values.Where((item) => item.name == crew.name && item.state != CrewState.dead).Any())
+							{
+								Crew crew2;
+								__instance.crew.TryRemove(crew.id, out crew2);
+							}
+							if (!crew.isPlayer && crew.currentCosm == __instance && crew.state != CrewState.dead && __instance.crew.Values.Where((item) => item != crew && item.faction == 2UL && crew.faction == 2UL && item.name == crew.name && item.state != CrewState.dead).Any())
+							{
+								Crew crew2;
+								__instance.crew.TryRemove(crew.id, out crew2);
+							}
+						}
+					}
+				}
+
+
+				//fixing: 
+				/*
+				[HarmonyPatch(typeof(CrewTeamWidget), "update")]
+				public class CrewTeamWidget_update
+				{
+					[HarmonyPrefix]
+					private static bool Prefix(CrewTeamWidget __instance, ConcurrentQueue<Object> ___reports)
+					{
+						BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+						while (___reports.TryDequeue(out var result))
+						{
+
+							if (((IEnumerable<Crew>)__instance.crew).Contains<Crew>((Crew)typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport").GetField("crew", flags).GetValue(result)))
+							{
+								//__instance.readReport(result);
+								var args = new object[] { result };
+								typeof(LogisticsScreenRev3).GetMethod("readReport", flags, null, new Type[] { typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport") }, null).Invoke(__instance, args);			
+							}
+							else
+							{
+								bool flag = false;
+								for (int index = 0; index < __instance.crew.Length; ++index)
+								{
+									Crew crew = (Crew)typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport").GetField("crew", flags).GetValue(result);
+									if (__instance.crew[index] == null && !__instance.names.Contains(crew.name))
+									{
+										flag = true;
+										__instance.crew[index] = crew;
+										break;
+									}
+								}
+								if (flag)
+								{
+									//__instance.readReport(result);
+									var args = new object[] { result };
+									typeof(LogisticsScreenRev3).GetMethod("readReport", flags, null, new Type[] { typeof(CrewTeamWidget).Assembly.GetType("CoOpSpRpG.StatusReport") }, null).Invoke(__instance, args);
+								}					
+							}
+						}
+						foreach (Crew dead in __instance.crew)
+						{
+							if (dead != null && dead.state == CrewState.dead)
+								__instance.handleDeath(dead);
+						}
+						return false;
+					}
+				}
+
+		/// <summary>
+		/// fixed
+		/// </summary>
+				//fixing: crystal seed tooltip is not updating if you select a crystal with 0% seed value after a crystal with more than 0% seed value
+				[HarmonyPatch(typeof(Dig), "aim")]
+				public class Dig_aim
+				{
+					[HarmonyPostfix]
+					private static void Postfix(MicroCosm cosm, Vector2 target, TipStatSmall ___stat3)
+					{
+						Rectangle value = new Rectangle((int)target.X - 1, (int)target.Y - 1, 2, 2);
+						foreach (CrystalMonster crystalMonster in cosm.crystals)
+						{
+							if (crystalMonster.bbox.Intersects(value))
+							{				
+								float num3 = (float)(crystalMonster.seedE + crystalMonster.seedM);
+								if (num3 <= 0f)
+								{
+									___stat3.updateStat("-");
+								}
+								break;
+							}
+						}
+					}
+				}
+		/// <summary>
+		/// fixed
+		/// </summary>
+				//fixing: planted crystals are no longer reproducing after a save/reload
+		///
+		/// fixed
+		///
+				//fixing: if you save and reload the game after planting a crystal and before it grows a root it will no longer grow
+				[HarmonyPatch(typeof(CrystalMonster))]
+				[HarmonyPatch(MethodType.Constructor)]
+				[HarmonyPatch(new Type[] { typeof(BinaryReader), typeof(int) })]
+				public class CrystalMonster_CrystalMonster
+				{
+
+					[HarmonyPostfix]
+					private static void Postfix(CrystalMonster __instance)
+					{
+						int activeroots = 0;
+						for (int i = 0; i < __instance.genome.tiles.Length; i++)
+						{
+							for (int j = 0; j < __instance.genome.tiles.Length; j++) // in vanilla "spreadCostE", "spreadCostm" stats are not lodead  with game reload an will remain 0 (fixed)
+							{
+
+								CrystalGene crystalGene = __instance.genome.tiles[i][j];
+								if (crystalGene != null)
+								{
+
+									if (crystalGene.crystalType == CrystalType.root && crystalGene.active == true)
+									{
+										activeroots++;
+									}
+								}
+							}
+						}
+						if (activeroots == 0) 
+						{
+							for (int i = 0; i < __instance.genome.tiles.Length; i++)
+							{
+								for (int j = 0; j < __instance.genome.tiles.Length; j++)
+								{
+									CrystalGene crystalGene = __instance.genome.tiles[i][j];
+									if (crystalGene != null)
+									{
+										 if(crystalGene.crystalType != CrystalType.shell)
+										 { 
+											__instance.minerals -= crystalGene.built;
+										 }
+										 else
+										 {
+											if (crystalGene.built != 0)
+												__instance.minerals += 80; // in vanilla "minerals" stat is not saved/lodead  with game reload
+										}
+									}
+								}
+							}
+							if (__instance.minerals < 0)
+							{
+								__instance.minerals = 0;
+							}
+						}
+					}
+				}
+		/// <summary>
+		/// fixed
+		/// </summary>
+				//fixing: crew is firing on target out of range of their weapon and not trying to get in range
+				[HarmonyPatch(typeof(Crew), "testLOS")] 
+				public class Crew_testLOS
+				{
+					[HarmonyPostfix]
+					private static void Postfix(Crew __instance, ref bool __result, Vector2 target, MicroCosm cosm)
+					{
+						if (__instance.heldItem != null && __instance.heldItem.GetType() == typeof(Gun))
+						{
+							float num = (__instance.heldItem as Gun).range;
+							float num2 = Vector2.Distance(__instance.position, target);
+							if (num2 > num)
+							{
+								__result = false;
+							}
+						}
+					}
+				}
+		/// <summary>
+		/// fixed
+		/// </summary>
+				//fixing: followers are not equiping their weapon and attacking a monster if they see one and have some other tool equiped.
+				//fixing: a rare crash while crew firing their weapon
+				[HarmonyPatch(typeof(Crew), "attack")]
+				public class Crew_attack
+				{
+
+					[HarmonyPrefix]
+					private static bool Prefix(Crew __instance, float elapsed,ref float ___floatRegister, ref Vector2 ___strafeSpot, ref bool ___targetLOS)
+					{
+						BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;			
+						{
+
+							if (__instance.goal.GetType() == typeof(Crew))
+							{
+								Crew crew = __instance.goal as Crew;
+								if (crew.state == CrewState.dead || crew.currentCosm != __instance.currentCosm || !__instance.currentCosm.crew.ContainsKey(crew.id))
+								{
+									__instance.goalCompleted();
+									return false;
+								}
+								if (__instance.heldSkill == null || !(__instance.heldSkill.GetType() == typeof(HitScanShoot)))
+								{
+									//__instance.selectGun();
+									typeof(Crew).GetMethod("selectGun", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
+									return false;
+								}
+								___floatRegister += elapsed;
+								if (___floatRegister > 0.3f)
+								{
+									___floatRegister = 0f;
+									//___targetLOS = __instance.testLOS(crew.position, __instance.currentCosm);
+									var args = new object[] { crew.position, __instance.currentCosm };
+									___targetLOS = (bool)typeof(Crew).GetMethod("testLOS", flags, null, new Type[] { typeof(Vector2), typeof(MicroCosm) }, null).Invoke(__instance, args);
+								}
+								if (___targetLOS)
+								{
+									__instance.target = crew.position;
+									Vector2 vector = __instance.target - __instance.position;
+									__instance.rotation = (float)Math.Atan2((double)vector.Y, (double)vector.X) + 1.5707964f;
+									__instance.heldSkill.activate(__instance, __instance.currentCosm, __instance.target);
+									if (___strafeSpot == Vector2.Zero)
+									{
+										int num = 0;
+										int num2 = __instance.currentCosm.nodeAt(__instance.position);
+										if (num2 == -1)
+										{
+											return false;
+										}
+										SmartNode smartNode = __instance.currentCosm.smartNodes[num2];
+										for (int i = 0; i < 8; i++)
+										{
+											if (smartNode.neighbors[i] != null && smartNode.neighbors[i].passable)
+											{
+												num++;
+											}
+										}
+										int num3 = RANDOM.Next(num);
+										int num4 = -1;
+										int num5 = -1;
+										//fixing: a rare crash while crew firing their weapon
+										while (num5 < num3 && num4 < 7)
+										{
+											num4++;
+											if (smartNode.neighbors[num4] != null && smartNode.neighbors[num4].passable)
+											{
+												num5++;
+											}
+										}
+										if (smartNode.neighbors[num4] == null || !smartNode.neighbors[num4].passable)
+										{
+											return false;
+										}
+										___strafeSpot = __instance.currentCosm.walkingLocation(smartNode.neighbors[num4].index);
+										return false;
+									}
+									else
+									{
+										float num6 = __instance.speed / 3f * elapsed;
+										if (Vector2.Distance(__instance.position, ___strafeSpot) < num6)
+										{
+											__instance.position = ___strafeSpot;
+											___strafeSpot = Vector2.Zero;
+											return false;
+										}
+										__instance.position += Vector2.Normalize(___strafeSpot - __instance.position) * num6;
+										return false;
+									}
+								}
+								else
+								{
+									___strafeSpot = Vector2.Zero;
+									if (__instance.path != null && __instance.path.Count > 1)
+									{
+										if (___floatRegister == 0f)
+										{
+											__instance.target = __instance.currentCosm.walkingLocation(__instance.path.First<int>());
+											if (Vector2.Distance(__instance.target, crew.position) > 256f)
+											{
+												int num7 = (int)(crew.position.X / 16f);
+												int num8 = (int)(crew.position.Y / 16f);
+												int d = num7 + num8 * __instance.currentCosm.width;
+												__instance.path = __instance.plotTilePath(d, 1);
+												if (__instance.path == null)
+												{
+													return false;
+												}
+												__instance.ETA = __instance.path.Count;
+											}
+										}
+										__instance.goTo(1f, elapsed);
+										return false;
+									}
+									if (___floatRegister == 0f)
+									{
+										int num9 = (int)(crew.position.X / 16f);
+										int num10 = (int)(crew.position.Y / 16f);
+										int d2 = num9 + num10 * __instance.currentCosm.width;
+										try
+										{
+											__instance.path = __instance.plotTilePath(d2, 1);
+										}
+										catch
+										{
+											return false;
+										}
+										if (__instance.path == null)
+										{
+											return false;
+										}
+										__instance.ETA = __instance.path.Count;
+										return false;
+									}
+								}
+							}
+							else if (__instance.goal.GetType() == typeof(Monster))
+							{
+								Monster monster = __instance.goal as Monster;
+								if (monster.dead)
+								{
+									__instance.goalCompleted();
+									return false;
+								}
+
+								if (__instance.heldSkill == null || !(__instance.heldSkill.GetType() == typeof(HitScanShoot)))
+								{
+									//fixing: followers are not equiping their weapon and attacking a monster if they see one and have some other tool equiped.
+									typeof(Crew).GetMethod("selectGun", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
+									return false;
+								}
+
+								if (__instance.heldSkill != null && __instance.heldSkill.GetType() == typeof(HitScanShoot))
+								{
+
+									___floatRegister += elapsed;
+									if (___floatRegister > 0.3f)
+									{
+										___floatRegister = 0f;
+										//___targetLOS = __instance.testLOS(monster.position, __instance.currentCosm);
+										var args = new object[] { monster.position, __instance.currentCosm };
+										___targetLOS = (bool)typeof(Crew).GetMethod("testLOS", flags, null, new Type[] { typeof(Vector2), typeof(MicroCosm) }, null).Invoke(__instance, args);
+
+									}
+									if (___targetLOS)
+									{
+										__instance.target = monster.position;
+										Vector2 vector2 = __instance.target - __instance.position;
+										__instance.rotation = (float)Math.Atan2((double)vector2.Y, (double)vector2.X) + 1.5707964f;
+										__instance.heldSkill.activate(__instance, __instance.currentCosm, __instance.target);
+										if (___strafeSpot == Vector2.Zero)
+										{
+											int num11 = 0;
+											SmartNode smartNode2 = __instance.currentCosm.smartNodes[__instance.currentCosm.nodeAt(__instance.position)];
+											for (int j = 0; j < 8; j++)
+											{
+												if (smartNode2.neighbors[j] != null && smartNode2.neighbors[j].passable)
+												{
+													num11++;
+												}
+											}
+											int num12 = RANDOM.Next(num11);
+											int num13 = -1;
+											int num14 = -1;
+											//fixing: a rare crash while crew firing their weapon
+											while (num14 < num12 && num13 < 7)
+											{
+												num13++;
+												if (smartNode2.neighbors[num13] != null && smartNode2.neighbors[num13].passable)
+												{
+													num14++;
+												}
+											}
+											if (smartNode2.neighbors[num13] == null || !smartNode2.neighbors[num13].passable)
+											{
+												return false;
+											}
+											___strafeSpot = __instance.currentCosm.walkingLocation(smartNode2.neighbors[num13].index);
+											return false;
+										}
+										else
+										{
+											float num15 = __instance.speed / 3f * elapsed;
+											if (Vector2.Distance(__instance.position, ___strafeSpot) < num15)
+											{
+												__instance.position = ___strafeSpot;
+												___strafeSpot = Vector2.Zero;
+												return false;
+											}
+											__instance.position += Vector2.Normalize(___strafeSpot - __instance.position) * num15;
+											return false;
+										}
+									}
+									else
+									{
+										___strafeSpot = Vector2.Zero;
+										if (__instance.path != null && __instance.path.Count > 1)
+										{
+											if (___floatRegister == 0f)
+											{
+												__instance.target = __instance.currentCosm.walkingLocation(__instance.path.First<int>());
+												if (Vector2.Distance(__instance.target, monster.position) > 256f)
+												{
+													int num16 = (int)(monster.position.X / 16f);
+													int num17 = (int)(monster.position.Y / 16f);
+													int d3 = num16 + num17 * __instance.currentCosm.width;
+													__instance.path = __instance.plotTilePath(d3, 1);
+													if (__instance.path == null)
+													{
+														return false;
+													}
+													__instance.ETA = __instance.path.Count;
+												}
+											}
+											__instance.goTo(1f, elapsed);
+											return false;
+										}
+										if (___floatRegister == 0f)
+										{
+											int num18 = (int)(monster.position.X / 16f);
+											int num19 = (int)(monster.position.Y / 16f);
+											int d4 = num18 + num19 * __instance.currentCosm.width;
+											try
+											{
+												__instance.path = __instance.plotTilePath(d4, 1);
+											}
+											catch
+											{
+												return false;
+											}
+											if (__instance.path == null)
+											{
+												return false;
+											}
+											__instance.ETA = __instance.path.Count;
+											return false;
+										}
+									}
+								}
+							}
+							else
+							{
+								__instance.goalFailed();
+							}
+							return false;
+						}
+					}
+				}
+		/// <summary>
+		/// fixed
+		/// </summary>
+				//fixing: a rare crash on AI trying to use turret metrics even if the ship has no turrets
+				//(the code in "if (this.avgBulletSpeed > 0f)" block needs a null check for shipConsoleMetric.turrets in vanilla)
+				[HarmonyPatch(typeof(ConsoleThought), "FiringActions")]
+				public class ConsoleThought_FiringActions
+				{
+
+					[HarmonyPrefix]
+					private static void Prefix(Ship ship, Console console, ref float ___avgBulletSpeed, ref float __state)
+					{
+
+						__state = ___avgBulletSpeed;
+						if (ship.shipMetric.ConsoleMetrics[console]?.turrets == null)
+						{
+							___avgBulletSpeed = 0f;
+						}
+					}
+
+					[HarmonyPostfix]
+					private static void Postfix(ref float ___avgBulletSpeed, float __state)
+					{
+						___avgBulletSpeed = __state;
+					}
+				}
+
+
+		/// <summary>
+
+		/// </summary>
+		/// fixed
 		//fixing: using a console on neutral stations adds the station crew as your followers if you reload the game on that station
 		[HarmonyPatch(typeof(VNavigationRev3), "Update")]
 		public class VNavigationRev3_Update
@@ -587,7 +1014,9 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: crash after loading savegame in a gauntlet boss battle and saving again after killing the boss, caused by icons not loading properly
 		[HarmonyPatch(typeof(BattleSessionG))]
 		[HarmonyPatch(MethodType.Constructor)]
@@ -606,7 +1035,9 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing crash on saving and loading gauntlet in a boss battle where only 2 enemies are left
 		[HarmonyPatch(typeof(GauntletChallengeRev2), "update")]
 		public class GauntletChallengeRev2_update
@@ -620,7 +1051,9 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: game crash in gauntlet challange on saving a tuning kit reward
 		[HarmonyPatch(typeof(GauntletTuningKit))]
 		[HarmonyPatch(MethodType.Constructor)]
@@ -634,7 +1067,9 @@ namespace Community_Bug_Fixes
 				__instance.type = InventoryItemType.gauntlet_tuning_kit;
 			}
 		}
-
+/// <summary>
+/// obsolete
+/// </summary>
 		//crew on NPC ships will now reload missile factories with grey goo if they have any in their inventory
 		[HarmonyPatch(typeof(CrewManager), "checkConsoles")]
 		public class CrewManager_checkConsoles
@@ -692,7 +1127,9 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
+/// <summary>
+/// obsolete
+/// </summary>
 		//crew on NPC ships will now reload missile factories with grey goo if they have any in their inventory
 		[HarmonyPatch(typeof(Crew), "setGoal")]
 		public class Crew_setGoal
@@ -740,7 +1177,9 @@ namespace Community_Bug_Fixes
 				return true;
 			}
 		}
-
+/// <summary>
+/// obsolete
+/// </summary>
 		//fixing: placing some grey goo for any spawning ships which have missile factories and not enough crew to reload them
 		[HarmonyPatch(typeof(WorldActor), "getShip", new Type[] { typeof(byte) })]
 		public class WorldActor_getShip
@@ -777,7 +1216,9 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(SSCMegaFortQuest), "spawnBoss")]
 		public class SSCMegaFortQuest_spawnBoss
@@ -828,7 +1269,9 @@ namespace Community_Bug_Fixes
 				return false; //instruction for harmony to supress executing the original method
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(SSCMegaFortQuest), "test")]
 		public class SSCMegaFortQuest_test
@@ -847,7 +1290,9 @@ namespace Community_Bug_Fixes
 
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(SSCMegaFortQuest), "clearEventSubscriptions")]
 		public class SSCMegaFortQuest_clearEventSubscriptions
@@ -859,7 +1304,9 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(MissileBossQuest), "spawnBoss")]
 		public class MissileBossQuest_spawnBoss
@@ -910,7 +1357,9 @@ namespace Community_Bug_Fixes
 				return false; //instruction for harmony to supress executing the original method
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(MissileBossQuest), "test")]
 		public class MissileBossQuest_test
@@ -928,7 +1377,9 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(MissileBossQuest), "clearEventSubscriptions")]
 		public class MissileBossQuest_clearEventSubscriptions
@@ -940,8 +1391,9 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(DroneBossQuest), "spawnBoss")]
 		public class DroneBossQuest_spawnBoss
@@ -984,7 +1436,9 @@ namespace Community_Bug_Fixes
 				return false; //instruction for harmony to supress executing the original method
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(DroneBossQuest), "test")]
 		public class DroneBossQuest_test
@@ -1002,7 +1456,9 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(DroneBossQuest), "clearEventSubscriptions")]
 		public class DroneBossQuest_clearEventSubscriptions
@@ -1013,7 +1469,9 @@ namespace Community_Bug_Fixes
 				__instance.targets = null;
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(SiegeQuest), "buildStages")]
 		public class SiegeQuest_buildStages
@@ -1051,7 +1509,9 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(SiegeQuest), "spawnSSCFleetStage")]
 		public class SiegeQuest_spawnSSCFleetStage
@@ -1099,7 +1559,9 @@ namespace Community_Bug_Fixes
 				return false; //instruction for harmony to supress executing the original method
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: quest logic for all of the main questline after killing Budd
 		[HarmonyPatch(typeof(CHARACTER_DATA), "addLog")]
 		public class CHARACTER_DATA_addLog
@@ -1117,7 +1579,9 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: bug that prevented quest completion dialogue after killing Greg
 		[HarmonyPatch]
 		public class GaryVsGregRev2_test
@@ -1146,7 +1610,9 @@ namespace Community_Bug_Fixes
 
 
 		//fixing bug that prevented spawning Budd and Greg, preventing their quest from completion.
-
+/// <summary>
+/// fixed
+/// </summary>
 		[HarmonyPatch(typeof(KillStationPirates), "spawnBudd")]
 		public class KillStationPirates_spawnBudd
 		{
@@ -1242,7 +1708,9 @@ namespace Community_Bug_Fixes
 				return false; //instruction for harmony to supress executing the original method
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: Ships at your homebase despawn if you have been absent for a while (now ships no longer despawn if they are docked to your homebase)
 		[HarmonyPatch(typeof(Ship), "mandatoryUpdate")]
 		public class Ship_mandatoryUpdate
@@ -1262,7 +1730,9 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: Unable to recruit Vaal after conversation with her. (preventing the bug from happening)
 		[HarmonyPatch(typeof(ValAgent), "finishConvo")]
 		public class ValAgent_finishConvo
@@ -1296,52 +1766,16 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
-		//fixing: Unable to recruit Vaal after conversation with her. (fixing already bugged saves)
-		[HarmonyPatch(typeof(AgentTracker), "getBarAgents")] 
-		public class AgentTracker_getBarAgents
-		{
-
-			[HarmonyPrefix]
-			private static void Prefix(AgentTracker __instance, ref List<BarAgentDrawer> __result, ulong stationID, Point grid)
-			{
-				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-				foreach (NPCAgent npcagent in __instance.allAgents)
-				{
-					if (npcagent.name == "Vaal")
-					{
-						var field = typeof(ValAgent).GetField("adopted", flags);
-						var adopted = (bool)field.GetValue(npcagent);
-						if (!__instance.unlockedFriends.Contains(npcagent) && adopted == true)
-						{
-							npcagent.canJoin = true;
-							__instance.adoptAgent(npcagent.name);
-							bool found = false;
-							if (PLAYER.currentGame != null && PLAYER.currentGame.activeQuests != null)
-							{
-								foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
-								{
-									if (triggerEvent.name == "find_crew")
-									{
-										triggerEvent.stage += 1U;
-										found = true;
-									}
-								}
-							}
-							if (CHARACTER_DATA.maxCrew == 0)
-							{
-								PLAYER.currentGame.activeQuests.Add(new CloningReminder(found));
-							}
-						}
-					}
-				}
-			}
-		}
-
+>
+		
 
 		//public static TriggerEvent thrown;
 
 		//fixing: monster getting invisible an lagging the game after quiting the game near monsters and reloading (in vanilla some animations fail to instantiate for some reason) 
+
+/// <summary>
+/// fixed
+/// </summary>
 
 		[HarmonyPatch(typeof(Monster), "animateMovement")]
 		public class Monster_animateMovement
@@ -1405,10 +1839,10 @@ namespace Community_Bug_Fixes
 				Community_Bug_Fixes.thrown = null;
 			}
 		}
-		*/
+		
 
 
-	
+		///fixed	
 
 		//fixing game crash when activating not connected console. 
 		[HarmonyPatch(typeof(ConsoleAccess), "activate")]
@@ -1423,7 +1857,9 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing game setting quest marker in the wrong place if you save and load the game before getting the marker for the ship to repair in "First Life" quest resulting in quest triggers being broken
 		[HarmonyPatch(typeof(Tutorial1), "test")]
 		public class Tutorial1_test
@@ -1437,7 +1873,9 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: if hail ship with no crew, you get stuck in blurry screen (in vanilla the statement "string name = this.representative.name;" is assigned without null check and crashing on this.representative being NULL)
 		//fixing: game crash if hailing ships in arena mode
 		[HarmonyPatch(typeof(HailAnimation), "setupPlayerHailSend")]
@@ -1450,25 +1888,6 @@ namespace Community_Bug_Fixes
 				{
 					return false; //supress executing the original method
 				}
-				/*
-				if (___representative == null)
-				{					
-					PLAYER.currentSession.pause();
-					DialogueTree dialogueTree = new DialogueTree();
-					DialogueTree dialogueTree2 = new DialogueTree();
-					dialogueTree2.action = new ResponseImmediateAction(() => {
-						foreach (ResponseImmediateAction responseImmediateAction in ___results)
-						{
-							responseImmediateAction();
-						}
-					});
-					___results.Add(new ResponseImmediateAction(() => PLAYER.currentSession.unpause()));
-					var name = "One";
-					dialogueTree.text = "There doesn't seem to be anyone there...";
-					dialogueTree.addOption("goodbye", dialogueTree2);
-					return false; //supress executing the original method
-				}
-				*/
 				if (___stationServices != null && ___representative.faction == 2UL)         //fixing: after using a console on a repair station it changes faction and no longer offers any repair services if you hail it.
 				{
 					___representative.faction = 5UL;
@@ -1477,94 +1896,10 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-		//fixing: using logistics room on a ship allows unintended use of logistics commands on the command source ship.
-		//fixing: unable to use logistics room to stash resources from homebase cargobays to ship building resources pool. (now you can use "Unload cargo" on your homebase)
-		[HarmonyPatch(typeof(LogisticsScreenRev3), "doRightClick")]
-		public class LogisticsScreenRev3_doRightClick
-		{
-
-			[HarmonyPrefix]
-			private static void Prefix(LogisticsScreenRev3 __instance, ref string opt, Ship ___selected)
-			{	
-				if (opt != "" && ___selected.id == PLAYER.currentShip.id && ___selected.id != PLAYER.currentGame.homeBaseId)
-				{
-					SCREEN_MANAGER.widgetChat.AddMessage("Invalid target. Command target ship has to be distinct from command source ship.", MessageTarget.Ship);
-					opt = "";
-				}
-				if (opt == "Unload cargo" && ___selected.id == PLAYER.currentGame.homeBaseId && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
-				{
-					var shipStores = CHARACTER_DATA.getCargoTabs();
-					List<string> cargoNames = CHARACTER_DATA.getCargoNames();
-					BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-					if (shipStores.Count > 0)
-					{
-						for (int i = 0; i < shipStores.Count; i++)
-						{
-							var openStorage = shipStores[i];
-							
-							string[] storageTabNames;
-							if (cargoNames.Count != shipStores.Count)
-							{
-								storageTabNames = new string[shipStores.Count];
-								for (int j = 0; j < shipStores.Count; j++)
-								{
-									storageTabNames[j] = "Tab " + j.ToString();
-								}
-							}
-							else
-							{
-								storageTabNames = cargoNames.ToArray();
-							}
-							var args = new object[] { openStorage };
-							typeof(LogisticsScreenRev3).GetMethod("stashResources", flags, null, new Type[] { typeof(Storage) }, null).Invoke(__instance, args);
-							CHARACTER_DATA.storeCargoTab(i, storageTabNames[i], args[0] as Storage);
-						}
-						opt = "";
-					}			
-				}
-
-				// scraping a ship with cargo get's the cargo deleted (now it will be placed as cargo pods in space instead)
-				if (opt == "Scrap" && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
-				{
-					var ship = ___selected;
-					MicroCosm cosm = PROCESS_REGISTER.getCosm(ship);
-					if (cosm.cargoBays != null && cosm.cargoBays.Count > 0)
-					{
-						for (int j = 0; j < cosm.cargoBays.Count; j++)
-						{
-							if (cosm.cargoBays[j].storage != null)
-							{
-								if (cosm.cargoBays[j].storage.inventory == null)
-								{
-									return;
-								}
-								for (int i = 0; i < cosm.cargoBays[j].storage.inventory.Length; i++)
-								{
-									if (cosm.cargoBays[j].storage.inventory[i] != null)
-									{
-										while (cosm.cargoBays[j].storage.inventory[i] != null)
-										{
-											InventoryItem item = cosm.cargoBays[j].storage.getItem(i);
-											if (item != null)
-											{
-												CargoPod cargoPod = new CargoPod(item, ship.position);
-												CargoPod cargoPod2 = cargoPod;
-												cargoPod2.position.X = cargoPod2.position.X + ((float)(RANDOM.NextDouble() * 100.0) - 50f);
-												CargoPod cargoPod3 = cargoPod;
-												cargoPod3.position.Y = cargoPod3.position.Y + ((float)(RANDOM.NextDouble() * 100.0) - 50f);
-												PLAYER.currentSession.cargo.Add(cargoPod);
-												PLAYER.currentSession.cargoDetection(cargoPod.position, true);
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
+		
+/// <summary>
+/// fixed
+/// </summary>
 		//fixing: unable to use logistics room to stash resources from homebase cargobays to ship building resources pool. (now you can use "Unload cargo" on your homebase)
 		[HarmonyPatch(typeof(LogisticsScreenRev3), "updateInput")]
 		public class LogisticsScreenRev3_updateInput
@@ -1602,9 +1937,9 @@ namespace Community_Bug_Fixes
 
 			}
 		}
+		*/
 
-
-		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
+		//qol: player avatar will continue to run forward instead of turning back until a movement key is released after passing through airlock to another ship if both ships have their airlocks on the same axis (facing the same direction).
 		[HarmonyPatch(typeof(ShipNavigationRev3), "updateInput")]
 		public class ShipNavigationRev3_updateInput
 		{
@@ -1674,7 +2009,7 @@ namespace Community_Bug_Fixes
 						PLAYER.avatar.shuffledBinds(false);
 					}
 					*/
-				}
+	}
 		}
 
 		[HarmonyPatch(typeof(VNavigationRev3), "updateInput")]
@@ -1749,7 +2084,6 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
 		[HarmonyPatch(typeof(Airlock), "tryUse")]
 		public class Airlock_tryUse
 		{
@@ -1770,7 +2104,6 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
 		[HarmonyPatch(typeof(DockSpot), "receiveCrew")]
 		public class DockSpot_receiveCrew
 		{
@@ -1799,7 +2132,6 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-		//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
 		[HarmonyPatch(typeof(CrewManager), "murder")]
 		public class CrewManager_murder
 		{
@@ -1814,7 +2146,7 @@ namespace Community_Bug_Fixes
 		}
 
 
-
+		//experimental/possible obsolete fixes of the (caught) exception on remobing ships from collection while iterating on it.
 		
 		[HarmonyPatch(typeof(PirateFactionRev2), "updateFlotillas")]
 		public class PirateFactionRev2_updateFlotillas
@@ -2037,6 +2369,7 @@ namespace Community_Bug_Fixes
 			}
 		}
 
+		/* Obsolete
 
 		[HarmonyPatch(typeof(ConsoleThought), "navUpdate")] // AI for ally escorting player, fixing AI bug
 		public class ConsoleThought_navUpdate
@@ -2218,12 +2551,7 @@ namespace Community_Bug_Fixes
 							flag2 = !session.LineTrace(ship.position, __instance.target.position); //<--------------------------------BUG------------------------------------------------this.target needs null check in vanilla code!
 
 						}
-						/*
-						else
-						{
-							SCREEN_MANAGER.widgetChat.AddMessage("Debug Message: Community Bug fixes mod prevented a rare AI bug! Please report this message to the mod author on discord.", MessageTarget.Ship);
-						}
-						*/
+
 						ship.velocity.Length();
 						Vector2 vector3 = __instance.actualDestination - ship.position;
 						vector3.Normalize();
@@ -2312,150 +2640,13 @@ namespace Community_Bug_Fixes
 				return true;
 			}
 		}
+		*/
 
 	}
 
-	[HarmonyPatch(typeof(WidgetChat), "CreateMessage")]
-	public class WidgetChat_CreateMessage
-	{
-		[HarmonyPrefix]
-		private static void Prefix( GuiElement sender, InputField ___inputField)
-		{
-			if (___inputField.inputFieldValue != "")
-			{
-				if (PLAYER.currentSession != null && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
-				{
-					if (___inputField.inputFieldValue.StartsWith("/"))
-					{
-						if (___inputField.inputFieldValue != "/")
-						{
-							char[] trimChars = new char[]
-							{
-								'/'
-							};
-							char[] separator = new char[]
-							{
-								' '
-							};
-							string[] command = ___inputField.inputFieldValue.TrimStart(trimChars).Split(separator);
-							switch (command[0].ToLower())
-							{
-								case "debug":
-									switch (command[1].ToLower())
-									{
-										case "spawn":
-											switch (command[2].ToLower())
-											{
-												case "budd":
-													BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-													if (PLAYER.currentSession.valuesOfInterest != null)
-													{
-														for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
-														{
-															if (PLAYER.currentSession.valuesOfInterest[i] == "ctp_big_station")
-															{
-																Vector2 position = PLAYER.currentSession.pointsOfInterest[i];
-																WorldActor worldActor = SHIPBAG.makeTemplate(95);
-																worldActor.id = PLAYER.currentWorld.getUID();
-																ulong id = worldActor.id;
-																worldActor.faction = 4UL;
-																worldActor.position = position;
-																worldActor.rotation = RANDOM.randomRotation();
-																worldActor.hackingAvailable = 0f;
-																worldActor.data = new CosmMetaData();
-																worldActor.data.crew = new Crew[0];
-																worldActor.dominantTeam = new CrewTeam();
-																worldActor.dominantTeam.aggroRadius = 6000f;
-																worldActor.dominantTeam.threats.Add(2UL);
-																worldActor.dominantTeam.threats.Add(3UL);
-																worldActor.dominantTeam.threats.Add(5UL);
-																Crew crew = new Crew();
-																crew.id = 0;
-																crew.name = "Budd";
-																crew.questTag = "kill_budd";
-																crew.heldItem = new Gun(19f, GunSpawnFlags.force_special);
-																crew.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
-																crew.faction = 4UL;
-																crew.factionless = false;
-																crew.team = worldActor.dominantTeam;
-																worldActor.data.addCrew(crew);
-																Crew crew2 = new Crew();
-																crew2.name = "Greg";
-																crew2.id = 1;
-																crew2.questTag = "gary_v_greg";
-																crew2.heldItem = new Gun(19f, GunSpawnFlags.force_shotgun);
-																crew2.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
-																crew2.faction = 4UL;
-																crew2.factionless = false;
-																crew2.team = worldActor.dominantTeam;
-																worldActor.data.addCrew(crew2);
-																for (int j = 0; j < 4; j++)
-																{
-																	Crew crew3 = new Crew();
-																	crew3.id = (byte)(j + 2);
-																	crew3.outfit(18f, 15f);
-																	crew3.faction = 4UL;
-																	crew3.factionless = false;
-																	crew3.team = worldActor.dominantTeam;
-																	worldActor.data.addCrew(crew3);
-																}
-																worldActor.data.buildStorage(worldActor);
-																if (worldActor.data.storage != null)
-																{
-																	for (int j = 0; j < 500; j++)
-																	{
-																		worldActor.data.addItem(new InventoryItem(InventoryItemType.grey_goo));
-																	}
-																}
-																Ship ship = worldActor.getShip(0);
-																if (PLAYER.currentShip != null)
-																{
-																	worldActor.dominantTeam.focus = PLAYER.currentShip.id;
-																	worldActor.dominantTeam.goalType = ConsoleGoalType.kill_target;
-																}
-																SCREEN_MANAGER.widgetChat.AddMessage("Budd ship has arrived!", MessageTarget.Command);
-																PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
-																ship.cosm.init();
-																ship.cosm.rearm = true;
-																foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
-																{
-																	if (triggerEvent.GetType() == typeof(KillBuddQuestRev2))
-																	{
-																		(triggerEvent as KillBuddQuestRev2).buddID = id;
-																	}
-																	if (triggerEvent.GetType() == typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2"))
-																	{
-																		//(triggerEvent as GaryVsGregRev2).buddID = id;
-																		typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2").GetField("buddID", flags).SetValue(triggerEvent, id);
-																	}
-																}
-															}
-														}
-													}
-													break;
-												default:
-													SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-													break;
-											}
 
-											break;
-										default:
-											SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-											break;
-									}
-									break;
-								default:
-									break;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	
 
-
-	//fixing: passing through airlock to the docked ship while pressing movement keys will instatly return you to the ship you have left if both ships have their airlocks on the same axis.
 	public static class CrewExtensions
 	{
 		static readonly ConditionalWeakTable<Crew, ShallNotPassObject> shallnotpass = new ConditionalWeakTable<Crew, ShallNotPassObject>();
