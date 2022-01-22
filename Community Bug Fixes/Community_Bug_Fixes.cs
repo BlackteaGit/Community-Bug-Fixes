@@ -40,7 +40,7 @@ namespace Community_Bug_Fixes
 					{
 						foreach (var crew in ___ship.cosm.crew.Values)
 						{
-							if (crew.team?.threats != null)
+							if (!crew.isPlayer && crew.faction != 2UL && crew.team?.threats != null)
 								crew.team.threats.Remove(threatFaction);
 							break;
 						}
@@ -62,7 +62,7 @@ namespace Community_Bug_Fixes
 					{
 						foreach (var crew in ___ship.cosm.crew.Values)
 						{
-							if(crew.team?.threats != null)
+							if (!crew.isPlayer && crew.faction != 2UL && crew.team?.threats != null)
 								crew.team.threats.Add(threatFaction);
 							break;
 						}
