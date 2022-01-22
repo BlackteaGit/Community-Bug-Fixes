@@ -27,143 +27,392 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
-		//adding a debug command to spawn budd's ship.
+		//fixing: some quests not setting/removing aggro of quest ships properly.
+		[HarmonyPatch(typeof(NonPlayerShip), "removeThreat")]
+		public class NonPlayerShip_removeThreat
+		{
+			[HarmonyPostfix]
+			private static void Postfix(ulong threatFaction, Ship ___ship)
+			{
+				if (___ship != null)
+				{
+					if (___ship.cosm?.crew != null)
+					{
+						foreach (var crew in ___ship.cosm.crew.Values)
+						{
+							if (crew.team?.threats != null)
+								crew.team.threats.Remove(threatFaction);
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		///fixing: some quests not setting/removing aggro of quest ships properly.
+		[HarmonyPatch(typeof(NonPlayerShip), "addThreat")]
+		public class NonPlayerShip_addThreat
+		{
+			[HarmonyPostfix]
+			private static void Postfix(ulong threatFaction, Ship ___ship)
+			{
+				if (___ship != null)
+				{
+					if (___ship.cosm?.crew != null)
+					{
+						foreach (var crew in ___ship.cosm.crew.Values)
+						{
+							if(crew.team?.threats != null)
+								crew.team.threats.Add(threatFaction);
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		//fixing: End the siege quest not counting killed enemies properly.
+		[HarmonyPatch(typeof(SiegeQuest))]
+		[HarmonyPatch(MethodType.Constructor)]
+		[HarmonyPatch(new Type[] { typeof(BinaryReader)})]
+		public class SiegeQuest_SiegeQuest
+		{
+			[HarmonyPostfix]
+			private static void Postfix(int ___killCounter, List<ulong> ___enemies, TipStatSmall ___tipStat)
+			{
+				___tipStat.value = ___killCounter.ToString() + " / " + ___enemies.Count.ToString();
+			}
+		}
+		//fixing: End the siege quest not counting killed enemies properly.
+		[HarmonyPatch(typeof(SiegeQuest), "shipDeathEventHandler")]
+		public class SiegeQuest_shipDeathEventHandler
+		{
+			[HarmonyPostfix]
+			private static void Postfix(Ship dead, int ___killCounter, List<ulong> ___enemies, TipStatSmall ___tipStat)
+			{
+				if (___enemies.Contains(dead.id))
+				{
+					___tipStat.value = ___killCounter.ToString() + " / " + ___enemies.Count.ToString();
+				}
+			}
+		}
+		//fixing: End the siege quest not counting killed enemies properly.
+		[HarmonyPatch(typeof(SiegeQuest), "waitForAllDeadStage")]
+		public class SiegeQuest_waitForAllDeadStage
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(SiegeQuest __instance, CallFunctionStage stage, float elapsed, ref bool __result, ref int ___killCounter, List<ulong> ___enemies, TipStatSmall ___tipStat, ref float ___timer)
+			{
+				int num = ___killCounter;
+				___timer += elapsed;
+				if (___timer > 30f)
+				{
+					___timer = 0f;
+					foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
+					{
+						if (factionControllerRev.GetType() == typeof(FriendlyPirateFaction))
+						{
+							FriendlyPirateFaction friendlyPirateFaction = factionControllerRev as FriendlyPirateFaction;
+							if (PLAYER.currentSession.grid == friendlyPirateFaction.homeGrid)
+							{
+								___killCounter = ___enemies.Count;
+								/*
+								foreach (ulong item in PLAYER.currentSession.allShips.Keys)
+								{
+									if (___enemies.Contains(item))
+									{
+										___killCounter--;
+									}
+								}
+								*/
+								foreach (ulong enemy in ___enemies)
+								{ 
+									if (PLAYER.currentSession.allShips.Keys.Contains(enemy) && PLAYER.currentSession.allShips[enemy].cosm?.crew != null && !PLAYER.currentSession.allShips[enemy].cosm.crew.IsEmpty)
+									{
+										___killCounter--;
+									}								 
+								}
+							}
+						}
+					}
+				}
+				if (num != ___killCounter)
+				{
+					___tipStat.value = ___killCounter.ToString() + " / " + ___enemies.Count.ToString();
+				}
+				stage.nextStage = stage;
+				if (___killCounter >= ___enemies.Count)
+				{
+					stage.nextStage = null;
+					foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
+					{
+						if (factionControllerRev.GetType() == typeof(FriendlyPirateFaction))
+						{
+							FriendlyPirateFaction friendlyPirateFaction = factionControllerRev as FriendlyPirateFaction;
+							if (PLAYER.currentSession.grid == friendlyPirateFaction.homeGrid)
+							{
+								friendlyPirateFaction.calm();
+							}
+						}
+					}
+				}
+				__result = false;
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+
+
+
+		//adding some debug commands.
 		[HarmonyPatch(typeof(WidgetChat), "CreateMessage")]
 		public class WidgetChat_CreateMessage
 		{
 			[HarmonyPrefix]
 			private static void Prefix(GuiElement sender, InputField ___inputField)
 			{
-				if (___inputField.inputFieldValue != "")
-				{
-					if (PLAYER.currentSession != null && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
+					BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+
+					if (___inputField.inputFieldValue != "")
 					{
-						if (___inputField.inputFieldValue.StartsWith("/"))
+						if (PLAYER.currentSession != null && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
 						{
-							if (___inputField.inputFieldValue != "/")
+							if (___inputField.inputFieldValue.StartsWith("/"))
 							{
-								char[] trimChars = new char[]
+								if (___inputField.inputFieldValue != "/")
 								{
-								'/'
-								};
-								char[] separator = new char[]
-								{
-								' '
-								};
-								string[] command = ___inputField.inputFieldValue.TrimStart(trimChars).Split(separator);
-								switch (command[0].ToLower())
-								{
-									case "debug":
-										switch (command[1].ToLower())
-										{
-											case "spawn":
-												switch (command[2].ToLower())
-												{
-													case "budd":
-														BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-														if (PLAYER.currentSession.valuesOfInterest != null)
-														{
-															for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
+									char[] trimChars = new char[]
+									{
+									'/'
+									};
+									char[] separator = new char[]
+									{
+									' '
+									};
+									string[] command = ___inputField.inputFieldValue.TrimStart(trimChars).Split(separator);
+									switch (command[0].ToLower())
+									{
+										case "debug":
+											switch (command[1].ToLower())
+											{
+												case "spawn":
+													switch (command[2].ToLower())
+													{
+														case "budd":
+															if (PLAYER.currentSession.valuesOfInterest != null)
 															{
-																if (PLAYER.currentSession.valuesOfInterest[i] == "ctp_big_station")
+																for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
 																{
-																	Vector2 position = PLAYER.currentSession.pointsOfInterest[i];
-																	WorldActor worldActor = SHIPBAG.makeTemplate(95);
-																	worldActor.id = PLAYER.currentWorld.getUID();
-																	ulong id = worldActor.id;
-																	worldActor.faction = 4UL;
-																	worldActor.position = position;
-																	worldActor.rotation = RANDOM.randomRotation();
-																	worldActor.hackingAvailable = 0f;
-																	worldActor.data = new CosmMetaData();
-																	worldActor.data.crew = new Crew[0];
-																	worldActor.dominantTeam = new CrewTeam();
-																	worldActor.dominantTeam.aggroRadius = 6000f;
-																	worldActor.dominantTeam.threats.Add(2UL);
-																	worldActor.dominantTeam.threats.Add(3UL);
-																	worldActor.dominantTeam.threats.Add(5UL);
-																	Crew crew = new Crew();
-																	crew.id = 0;
-																	crew.name = "Budd";
-																	crew.questTag = "kill_budd";
-																	crew.heldItem = new Gun(19f, GunSpawnFlags.force_special);
-																	crew.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
-																	crew.faction = 4UL;
-																	crew.factionless = false;
-																	crew.team = worldActor.dominantTeam;
-																	worldActor.data.addCrew(crew);
-																	Crew crew2 = new Crew();
-																	crew2.name = "Greg";
-																	crew2.id = 1;
-																	crew2.questTag = "gary_v_greg";
-																	crew2.heldItem = new Gun(19f, GunSpawnFlags.force_shotgun);
-																	crew2.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
-																	crew2.faction = 4UL;
-																	crew2.factionless = false;
-																	crew2.team = worldActor.dominantTeam;
-																	worldActor.data.addCrew(crew2);
-																	for (int j = 0; j < 4; j++)
+																	if (PLAYER.currentSession.valuesOfInterest[i] == "ctp_big_station")
 																	{
-																		Crew crew3 = new Crew();
-																		crew3.id = (byte)(j + 2);
-																		crew3.outfit(18f, 15f);
-																		crew3.faction = 4UL;
-																		crew3.factionless = false;
-																		crew3.team = worldActor.dominantTeam;
-																		worldActor.data.addCrew(crew3);
-																	}
-																	worldActor.data.buildStorage(worldActor);
-																	if (worldActor.data.storage != null)
-																	{
-																		for (int j = 0; j < 500; j++)
+																		Vector2 position = PLAYER.currentSession.pointsOfInterest[i];
+																		WorldActor worldActor = SHIPBAG.makeTemplate(95);
+																		worldActor.id = PLAYER.currentWorld.getUID();
+																		ulong id = worldActor.id;
+																		worldActor.faction = 4UL;
+																		worldActor.position = position;
+																		worldActor.rotation = RANDOM.randomRotation();
+																		worldActor.hackingAvailable = 0f;
+																		worldActor.data = new CosmMetaData();
+																		worldActor.data.crew = new Crew[0];
+																		worldActor.dominantTeam = new CrewTeam();
+																		worldActor.dominantTeam.aggroRadius = 6000f;
+																		worldActor.dominantTeam.threats.Add(2UL);
+																		worldActor.dominantTeam.threats.Add(3UL);
+																		worldActor.dominantTeam.threats.Add(5UL);
+																		Crew crew = new Crew();
+																		crew.id = 0;
+																		crew.name = "Budd";
+																		crew.questTag = "kill_budd";
+																		crew.heldItem = new Gun(19f, GunSpawnFlags.force_special);
+																		crew.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
+																		crew.faction = 4UL;
+																		crew.factionless = false;
+																		crew.team = worldActor.dominantTeam;
+																		worldActor.data.addCrew(crew);
+																		Crew crew2 = new Crew();
+																		crew2.name = "Greg";
+																		crew2.id = 1;
+																		crew2.questTag = "gary_v_greg";
+																		crew2.heldItem = new Gun(19f, GunSpawnFlags.force_shotgun);
+																		crew2.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
+																		crew2.faction = 4UL;
+																		crew2.factionless = false;
+																		crew2.team = worldActor.dominantTeam;
+																		worldActor.data.addCrew(crew2);
+																		for (int j = 0; j < 4; j++)
 																		{
-																			worldActor.data.addItem(new InventoryItem(InventoryItemType.grey_goo));
+																			Crew crew3 = new Crew();
+																			crew3.id = (byte)(j + 2);
+																			crew3.outfit(18f, 15f);
+																			crew3.faction = 4UL;
+																			crew3.factionless = false;
+																			crew3.team = worldActor.dominantTeam;
+																			worldActor.data.addCrew(crew3);
 																		}
-																	}
-																	Ship ship = worldActor.getShip(0);
-																	if (PLAYER.currentShip != null)
-																	{
-																		worldActor.dominantTeam.focus = PLAYER.currentShip.id;
-																		worldActor.dominantTeam.goalType = ConsoleGoalType.kill_target;
-																	}
-																	SCREEN_MANAGER.widgetChat.AddMessage("Budd ship has arrived!", MessageTarget.Command);
-																	PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
-																	ship.cosm.init();
-																	ship.cosm.rearm = true;
-																	foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
-																	{
-																		if (triggerEvent.GetType() == typeof(KillBuddQuestRev2))
+																		worldActor.data.buildStorage(worldActor);
+																		if (worldActor.data.storage != null)
 																		{
-																			(triggerEvent as KillBuddQuestRev2).buddID = id;
+																			for (int j = 0; j < 500; j++)
+																			{
+																				worldActor.data.addItem(new InventoryItem(InventoryItemType.grey_goo));
+																			}
 																		}
-																		if (triggerEvent.GetType() == typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2"))
+																		Ship ship = worldActor.getShip(0);
+																		if (PLAYER.currentShip != null)
 																		{
-																			//(triggerEvent as GaryVsGregRev2).buddID = id;
-																			typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2").GetField("buddID", flags).SetValue(triggerEvent, id);
+																			worldActor.dominantTeam.focus = PLAYER.currentShip.id;
+																			worldActor.dominantTeam.goalType = ConsoleGoalType.kill_target;
+																		}
+																		SCREEN_MANAGER.widgetChat.AddMessage("Budd ship has arrived!", MessageTarget.Command);
+																		PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
+																		ship.cosm.init();
+																		ship.cosm.rearm = true;
+																		foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
+																		{
+																			if (triggerEvent.GetType() == typeof(KillBuddQuestRev2))
+																			{
+																				(triggerEvent as KillBuddQuestRev2).buddID = id;
+																			}
+																			if (triggerEvent.GetType() == typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2"))
+																			{
+																				//(triggerEvent as GaryVsGregRev2).buddID = id;
+																				typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2").GetField("buddID", flags).SetValue(triggerEvent, id);
+																			}
 																		}
 																	}
 																}
 															}
-														}
-														break;
-													default:
-														SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-														break;
-												}
+															break;
+														default:
+															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+															break;
+													}
+													break;
+												case "unlock":
+													switch (command[2].ToLower())
+													{
+														case "hulls":
+															foreach (int key in SHIPBAG.aiTemplates.Keys)
+															{
+																try
+																{
+																	CHARACTER_DATA.unlockHull(key);
+																}
+																catch
+																{
+																}
+																
+															}
+															SCREEN_MANAGER.widgetChat.AddMessage("all accessible hulls unlocked", MessageTarget.Whisper);
+															break;
+														default:
+															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+															break;
+													}
+													break;
+												case "delete":
+													switch (command[2].ToLower())
+													{
+														case "hull":
+															if(command.Length > 3)
+															{
+																SQLiteConnection dBCon = typeof(CHARACTER_DATA).GetField("dBCon", flags).GetValue(null) as SQLiteConnection;
+																string md5 = "";
 
-												break;
-											default:
-												SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-												break;
-										}
-										break;
-									default:
-										break;
+																var hull = SHIPBAG.shipNameDic.FirstOrDefault(x => x.Value == command[3]).Key;
+																if(hull != null)
+																{
+																	md5 = hull;
+																}
+																else
+																{
+																	
+																	SQLiteCommand sqliteCommand = new SQLiteCommand("select checksum from hulls where name = @selected and checksum LIKE @check", dBCon);
+																	sqliteCommand.Parameters.Add("@selected", DbType.String).Value = CHARACTER_DATA.selected;
+																	sqliteCommand.Parameters.Add("@check", DbType.String).Value = command[3]+"%";
+																	SQLiteDataReader sqliteDataReader = sqliteCommand.ExecuteReader();
+																	if (sqliteDataReader.Read())
+																	{
+																		md5 = sqliteDataReader["checksum"].ToString();
+																	}
+																	if(md5 == "")
+																	md5 = command[3];
+																}															
+																if (CHARACTER_DATA.hasHull(md5))
+																{
+
+																	SQLiteCommand sqliteCommand = new SQLiteCommand("delete from hulls where name = @selected and checksum = @check", dBCon);
+																	sqliteCommand.Parameters.Add("@selected", DbType.String).Value = CHARACTER_DATA.selected;
+																	sqliteCommand.Parameters.Add("@check", DbType.String).Value = md5;
+																	sqliteCommand.ExecuteNonQuery();
+
+
+																	SQLiteCommand sqliteCommand2 = new SQLiteCommand("delete from designs where name = @selected and checksum = @check", dBCon);
+																	sqliteCommand2.Parameters.Add("@selected", DbType.String).Value = CHARACTER_DATA.selected;
+																	sqliteCommand2.Parameters.Add("@check", DbType.String).Value = md5;
+																	sqliteCommand2.ExecuteNonQuery();
+
+																	SCREEN_MANAGER.widgetChat.AddMessage("hull " + md5 + "deleted succesfully", MessageTarget.Whisper);
+																}
+																else
+																{
+																	SCREEN_MANAGER.widgetChat.AddMessage("hull not found", MessageTarget.Whisper);
+																}
+																break;
+															}
+															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+															break;
+														default:
+															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+															break;
+													}
+													break;
+												case "config":
+													switch (command[2].ToLower())
+													{
+														case "interior_effects":
+															switch (command[3].ToLower())
+															{
+																case "true":
+																	CONFIG.advancedInteriorEffect = true;
+																	SCREEN_MANAGER.alerts.Enqueue("Interior effects active.");
+																	break;
+																case "false":
+																	CONFIG.advancedInteriorEffect = false;
+																	SCREEN_MANAGER.alerts.Enqueue("Interior effects inactive.");
+																	break;
+																default:
+																	SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																	break;
+															}
+															break;
+														default:
+															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+															break;
+													}
+													break;
+												case "?":
+													goto case "help";
+												case "help":
+													SCREEN_MANAGER.widgetChat.AddMessage("debug commands:", MessageTarget.Whisper);
+													SCREEN_MANAGER.widgetChat.AddMessage("> spawn budd", MessageTarget.Whisper);
+													SCREEN_MANAGER.widgetChat.AddMessage("> unlock hulls", MessageTarget.Whisper);
+													SCREEN_MANAGER.widgetChat.AddMessage("> delete hull *name*", MessageTarget.Whisper);
+													SCREEN_MANAGER.widgetChat.AddMessage("> config interior_effects *true/false*", MessageTarget.Whisper);
+													break;
+												default:
+													SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+													break;
+											}
+											break;
+										default:
+											break;
+									}
 								}
 							}
 						}
 					}
-				}
+
 			}
 		}
 
@@ -332,8 +581,6 @@ namespace Community_Bug_Fixes
 							{
 								dictionary.Add(keyValuePair.Key, (int)Math.Round((double)keyValuePair.Value));
 							}
-
-
 						}
 						ulong num = 0UL;
 						___selected.performUndock(PLAYER.currentSession);
@@ -480,6 +727,8 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
+
+		
 		/*obsolete
 		/// <summary>
 		/// fixed
