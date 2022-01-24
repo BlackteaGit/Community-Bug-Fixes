@@ -27,7 +27,9 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
-		//fixing: some quests not setting/removing aggro of quest ships properly.
+
+
+		//fixing: some quests not removing aggro of quest ships properly.
 		[HarmonyPatch(typeof(NonPlayerShip), "removeThreat")]
 		public class NonPlayerShip_removeThreat
 		{
@@ -40,7 +42,7 @@ namespace Community_Bug_Fixes
 					{
 						foreach (var crew in ___ship.cosm.crew.Values)
 						{
-							if (!crew.isPlayer && crew.faction != 2UL && crew.team?.threats != null)
+							if (crew.faction == ___ship.faction && crew.team?.threats != null)
 								crew.team.threats.Remove(threatFaction);
 							break;
 						}
@@ -48,29 +50,7 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-
-		///fixing: some quests not setting/removing aggro of quest ships properly.
-		[HarmonyPatch(typeof(NonPlayerShip), "addThreat")]
-		public class NonPlayerShip_addThreat
-		{
-			[HarmonyPostfix]
-			private static void Postfix(ulong threatFaction, Ship ___ship)
-			{
-				if (___ship != null)
-				{
-					if (___ship.cosm?.crew != null)
-					{
-						foreach (var crew in ___ship.cosm.crew.Values)
-						{
-							if (!crew.isPlayer && crew.faction != 2UL && crew.team?.threats != null)
-								crew.team.threats.Add(threatFaction);
-							break;
-						}
-					}
-				}
-			}
-		}
-
+		
 		//fixing: End the siege quest not counting killed enemies properly.
 		[HarmonyPatch(typeof(SiegeQuest))]
 		[HarmonyPatch(MethodType.Constructor)]
@@ -283,6 +263,115 @@ namespace Community_Bug_Fixes
 																}
 															}
 															break;
+														case "small_pirate":
+															foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
+															{
+																if (factionControllerRev.GetType() == typeof(PirateFactionRev2))
+																{
+																	PirateFactionRev2 pirateFaction = factionControllerRev as PirateFactionRev2;
+																	if (pirateFaction.ctpSystem.X == 0 && pirateFaction.ctpSystem.Y == 0 && PLAYER.currentSession != null)
+																	{
+																		pirateFaction.ctpSystem = PLAYER.currentSession.grid;
+																	}
+																	int amount = 1;
+																	if (command.Length > 3)
+																	{
+																		int parsed;
+																		if (int.TryParse(command[3], out parsed))
+																		{	
+																			if(parsed > amount)
+																			amount = parsed;
+																		}
+																		else
+																		{
+																			SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																			return;
+																		}
+																	}
+																	for (int i = 0; i < amount; i++)
+																	{
+																		int spawnIndex = (typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>)[RANDOM.Next((typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>).Count)];
+																		ulong ind = pirateFaction.spawnShip(spawnIndex, pirateFaction.ctpSystem, pirateFaction.ctpHome, 1f);
+																		//pirateFaction.ctSmallGoons.Add(ind);
+																		(typeof(PirateFactionRev2).GetField("ctSmallGoons", flags).GetValue(pirateFaction) as List<ulong>).Add(ind);
+																		if (pirateFaction.ships.ContainsKey(ind))
+																		{
+																			NonPlayerShip nonPlayerShipSmall = pirateFaction.ships[ind];
+																			nonPlayerShipSmall.outfit(18f, 15f);
+																			nonPlayerShipSmall.addThreat(2UL);
+																			nonPlayerShipSmall.addThreat(3UL);
+																			nonPlayerShipSmall.addThreat(5UL);
+																			nonPlayerShipSmall.addThreat(7UL);
+																			nonPlayerShipSmall.setQuestNPC("bust_pirates");
+																			if (PLAYER.currentShip != null)
+																			{
+																				nonPlayerShipSmall.patrolTo(PLAYER.currentShip.grid, PLAYER.currentShip.position);
+																			}
+																			else
+																			{
+																				nonPlayerShipSmall.patrolTo(pirateFaction.ctpSystem, pirateFaction.ctpHome);
+																			}
+																			int quantity = 8 + RANDOM.Next(5);
+																			nonPlayerShipSmall.addLoot(quantity, LootTableType.pirate_b);
+																			nonPlayerShipSmall.aggroRadius = 1500f;
+																		}
+																	}
+																	SCREEN_MANAGER.widgetChat.AddMessage($"{amount} ship(s) spawned succesfully", MessageTarget.Whisper);
+																	break;
+																}
+															}															
+															break;
+														case "big_pirate":
+															foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
+															{
+																if (factionControllerRev.GetType() == typeof(PirateFactionRev2))
+																{
+																	PirateFactionRev2 pirateFaction = factionControllerRev as PirateFactionRev2;
+																	if (pirateFaction.ctpSystem.X == 0 && pirateFaction.ctpSystem.Y == 0 && PLAYER.currentSession != null)
+																	{
+																		pirateFaction.ctpSystem = PLAYER.currentSession.grid;
+																	}
+																	int amount = 1;
+																	if (command.Length > 3)
+																	{
+																		int parsed;
+																		if (int.TryParse(command[3], out parsed))
+																		{	
+																			if(parsed > amount)
+																			amount = parsed;
+																		}
+																		else
+																		{
+																			SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																			return;
+																		}
+																	}
+																	for (int i = 0; i < amount; i++)
+																	{
+																		ulong ind = pirateFaction.spawnShip(53, pirateFaction.ctpSystem, pirateFaction.ctpHome, 1f);
+																		//pirateFaction.ctBigGoons.Add(ind);
+																		(typeof(PirateFactionRev2).GetField("ctBigGoons", flags).GetValue(pirateFaction) as List<ulong>).Add(ind);
+																		NonPlayerShip nonPlayerShipBig = pirateFaction.ships[ind];
+																		nonPlayerShipBig.outfit(18f, 15f);
+																		nonPlayerShipBig.addThreat(2UL);
+																		nonPlayerShipBig.addThreat(3UL);
+																		nonPlayerShipBig.addThreat(5UL);
+																		nonPlayerShipBig.setQuestNPC("bust_pirates_2");
+																		if (PLAYER.currentShip != null)
+																		{
+																			nonPlayerShipBig.patrolTo(PLAYER.currentShip.grid, PLAYER.currentShip.position);
+																		}
+																		else
+																		{
+																			nonPlayerShipBig.patrolTo(pirateFaction.ctpSystem, pirateFaction.ctpHome);
+																		}
+																		nonPlayerShipBig.aggroRadius = 1500f;
+																	}
+																	SCREEN_MANAGER.widgetChat.AddMessage($"{amount} ship(s) spawned succesfully", MessageTarget.Whisper);
+																	break;
+																}
+															}
+															break;
 														default:
 															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
 															break;
@@ -396,6 +485,8 @@ namespace Community_Bug_Fixes
 												case "help":
 													SCREEN_MANAGER.widgetChat.AddMessage("debug commands:", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> spawn budd", MessageTarget.Whisper);
+													SCREEN_MANAGER.widgetChat.AddMessage("> spawn small_pirate *amount*", MessageTarget.Whisper);
+													SCREEN_MANAGER.widgetChat.AddMessage("> spawn big_pirate *amount*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> unlock hulls", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> delete hull *name*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> config interior_effects *true/false*", MessageTarget.Whisper);
@@ -2615,6 +2706,34 @@ namespace Community_Bug_Fixes
 					}
 				}
 				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+
+		//fixing followers not helping to fight teamless crew on stations
+		[HarmonyPatch(typeof(Crew), "findTargets")]
+		public class Crew_findTargets
+		{
+			[HarmonyPostfix]
+			private static void Postfix(Crew __instance)
+			{
+				if (!__instance.isPassive && __instance.team?.threats != null)
+				{
+					foreach (Crew crew2 in __instance.currentCosm.crew.Values)
+					{
+						if (crew2.faction != __instance.faction && crew2.faction != 9UL && crew2.state != CrewState.dead && Vector2.Distance(crew2.position, __instance.position) < 600f)
+						{
+							if (__instance.currentCosm.isStation && !__instance.team.threats.Contains(crew2.faction))
+							{
+								if (__instance.faction == CONFIG.playerFaction && crew2.goal.GetType() == typeof(Crew) && ((crew2.goal as Crew).isPlayer || (crew2.goal as Crew).faction == CONFIG.playerFaction) && crew2.state == CrewState.attacking)
+								{
+									__instance.team.threats.Add(crew2.faction);
+								}
+								return;
+							}
+							break;
+						}
+					}
+				}
 			}
 		}
 
