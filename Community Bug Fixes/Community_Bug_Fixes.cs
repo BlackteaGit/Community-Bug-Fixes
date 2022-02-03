@@ -27,7 +27,227 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
+		[HarmonyPatch(typeof(LatticeRepairEffect), "invalidIndex")]
+		public class LatticeRepairEffect_invalidIndex
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(Ship ship, ref bool __result, int ___indexRoller)
+			{
+				Color color = ship.botD[___indexRoller];
+				if (color.A == 255 || ship.cosm == null)
+				{
+					__result = true;
+					return false;
+				}
+				bool flag = false;
+				for (int i = 0; i < 8; i++)
+				{
+					if (ship.cosm.tiles[___indexRoller].neighbors[i] != null && ship.cosm.tiles[___indexRoller].neighbors[i].A == byte.MaxValue && TILEBAG.isAnyArmorTileColor(ref ship.botD[Array.IndexOf(ship.cosm.tiles, ship.cosm.tiles[___indexRoller].neighbors[i])]))
+					{								
+						flag = true;
+					}
+					else if (ship.cosm.tiles[___indexRoller].neighbors[i] != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner.hitpoints == ship.cosm.tiles[___indexRoller].neighbors[i].owner.hitpointsMax)
+					{	
+						if(ship.cosm.tiles[___indexRoller].neighbors[i].owner.IsRooted(ship))
+						{
+							for (int k = 0; k < ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles.Length; k++)
+							{
+								for (int j = 0; j < 8; j++)
+								{
+									if (ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j] != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner!= null 
+									&& ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.hitpoints == ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.hitpointsMax &&
+									ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.IsRooted(ship))
+									{
+										flag = true;
+									}
+								}
+							}
+						}
+					}
+				}
+				if (!flag)
+				{
+					__result = true;
+					return false;
+				}
+				if (TILEBAG.isAnyArmorTileColor(ref color))
+				{
+					if (___indexRoller >= ship.Width && ship.botD[___indexRoller - ship.Width].A > 0)
+					{
+						__result = false;
+						return false;
+					}
+					if (___indexRoller < ship.botD.Length - 1 && ship.botD[___indexRoller + 1].A > 0)
+					{
+						__result = false;
+						return false;
+					}
+					if (___indexRoller < ship.botD.Length - ship.Width - 1 && ship.botD[___indexRoller + ship.Width].A > 0)
+					{
+						__result = false;
+						return false;
+					}
+					if (___indexRoller > 1 && ship.botD[___indexRoller - 1].A > 0)
+					{
+						__result = false;
+						return false;
+					}
+				}
+				__result = true;
+				return false;
+			}
+		}
 
+		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
+		[HarmonyPatch(typeof(NanoAura), "repairBot")]
+		public class NanoAura_repairBot
+		{
+			[HarmonyPrefix]
+			private static void Prefix(Crew source)
+			{
+				int count = source.currentCosm.modules.Count;
+				int num = RANDOM.Next(count);
+				int num2 = 0;
+				while (num2 < count && source.currentCosm.modules[num].hitpoints == source.currentCosm.modules[num].hitpointsMax)
+				{
+					for(int i = 0; i < source.currentCosm.modules[num].tiles.Length; i++ )
+					{
+						for(int j = 0; j < 8 ; j++)
+						{
+							if(source.currentCosm.modules[num].tiles[i].neighbors[j] != null && source.currentCosm.modules[num].tiles[i].neighbors[j].A == 0)
+							{
+
+								SpriteUpdate spriteUpdate = SpriteUpdate.newPooled();
+								spriteUpdate.add(source.currentCosm.modules[num].tiles[i].neighbors[j].X, false, false, 1);
+								source.currentCosm.modules[num].tiles[i].neighbors[j].A += 1;								
+								source.currentCosm.publisher.publishCosm(spriteUpdate);
+								return;
+							}
+                        }
+					}
+					num2++;
+					num++;
+					if (num >= count)
+					{
+						num = 0;
+					}
+				}
+			}
+
+		}
+
+
+		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
+		[HarmonyPatch(typeof(Module), "repairWhole")]
+		public class Module_repairWhole
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(uint amt, ref bool __result, Module __instance)
+			{
+				SpriteUpdate spriteUpdate = null;
+				uint num = 0U;
+				int num2 = RANDOM.Next(__instance.tiles.Length);
+				bool flag = false;
+				int num3 = 0;
+				while (!flag && num3 < __instance.tiles.Length)
+				{
+					num2++;
+					num3++;
+					if (num2 >= __instance.tiles.Length)
+					{
+						num2 = 0;
+					}
+					if (__instance.tiles[num2].A < 255)
+					{
+						if (__instance.tiles[num2].neighbors[0] != null && __instance.tiles[num2].neighbors[0].A > 0)
+						{
+							flag = true;
+							break;
+						}
+						if (__instance.tiles[num2].neighbors[1] != null && __instance.tiles[num2].neighbors[1].A > 0)
+						{
+							flag = true;
+							break;
+						}
+						if (__instance.tiles[num2].neighbors[2] != null && __instance.tiles[num2].neighbors[2].A > 0)
+						{
+							flag = true;
+							break;
+						}
+						if (__instance.tiles[num2].neighbors[3] != null && __instance.tiles[num2].neighbors[3].A > 0)
+						{
+							flag = true;
+							break;
+						}
+						if (__instance.tiles[num2].neighbors[4] != null && __instance.tiles[num2].neighbors[4].A > 0)
+						{
+							flag = true;
+							break;
+						}
+						if (__instance.tiles[num2].neighbors[5] != null && __instance.tiles[num2].neighbors[5].A > 0)
+						{
+							flag = true;
+							break;
+						}
+						if (__instance.tiles[num2].neighbors[6] != null && __instance.tiles[num2].neighbors[6].A > 0)
+						{
+							flag = true;
+							break;
+						}
+						if (__instance.tiles[num2].neighbors[7] != null && __instance.tiles[num2].neighbors[7].A > 0)
+						{
+							flag = true;
+							break;
+						}
+					}
+				}
+				if (!flag)
+				{
+					__result = false;
+					return false;
+				}
+				int num4 = __instance.tiles.Length;
+				while (num < amt && num4 > 0)
+				{
+					uint num5 = amt - num;
+					uint num6 = (uint)(byte.MaxValue - __instance.tiles[num2].A);
+					if (num6 > 0U)
+					{
+						if (spriteUpdate == null)
+						{
+							spriteUpdate = SpriteUpdate.newPooled();
+						}
+						if (num6 >= num5)
+						{
+							ModTile modTile = __instance.tiles[num2];
+							modTile.A += (byte)num5;
+							spriteUpdate.add(__instance.tiles[num2].X, false, false, (byte)num5);
+							num = amt;
+						}
+						else if (num6 < num5)
+						{
+							spriteUpdate.add(__instance.tiles[num2].X, false, false, (byte)num6);
+							__instance.tiles[num2].A = byte.MaxValue;
+							num += num6;
+						}
+					}
+					num4--;
+					num2++;
+					if (num2 >= __instance.tiles.Length)
+					{
+						num2 = 0;
+					}
+				}
+				if (spriteUpdate != null)
+				{
+					__instance.cosm.publisher.publishCosm(spriteUpdate);
+				}
+				__result = num < amt;
+				return false;
+			}
+
+		}
 
 		//fixing: some quests not removing aggro of quest ships properly.
 		[HarmonyPatch(typeof(NonPlayerShip), "removeThreat")]
@@ -2720,11 +2940,11 @@ namespace Community_Bug_Fixes
 				{
 					foreach (Crew crew2 in __instance.currentCosm.crew.Values)
 					{
-						if (crew2.faction != __instance.faction && crew2.faction != 9UL && crew2.state != CrewState.dead && Vector2.Distance(crew2.position, __instance.position) < 600f)
+						if (crew2 != null && crew2.faction != __instance.faction && crew2.faction != 9UL && crew2.state != CrewState.dead && Vector2.DistanceSquared(crew2.position, __instance.position) < 600f * 600f)
 						{
 							if (__instance.currentCosm.isStation && !__instance.team.threats.Contains(crew2.faction))
 							{
-								if (__instance.faction == CONFIG.playerFaction && crew2.goal.GetType() == typeof(Crew) && ((crew2.goal as Crew).isPlayer || (crew2.goal as Crew).faction == CONFIG.playerFaction) && crew2.state == CrewState.attacking)
+								if (__instance.faction == CONFIG.playerFaction && crew2.goal != null && crew2.goal.GetType() == typeof(Crew) && ((crew2.goal as Crew).isPlayer || (crew2.goal as Crew).faction == CONFIG.playerFaction) && crew2.state == CrewState.attacking)
 								{
 									__instance.team.threats.Add(crew2.faction);
 								}
@@ -3012,8 +3232,30 @@ namespace Community_Bug_Fixes
 
 	}
 
+	//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
 
-	
+	public static class ModuleExtensions
+	{
+		public static bool IsRooted(this Module module, Ship ship)
+		{
+			if (module != null)
+			{ 
+				for (int i = 0; i < module.tiles.Length; i++)
+				{
+					for (int j = 0; j < module.tiles[i].neighbors.Length; j++)
+					{
+						var neighbor = module.tiles[i].neighbors[j];
+						if (!(neighbor.owner == null || neighbor.owner != null && neighbor.owner.hitpoints == neighbor.owner.hitpointsMax || TILEBAG.isAnyArmorTileColor(ref ship.botD[Array.IndexOf(ship.cosm.tiles, neighbor)])))
+						{
+							return false;
+						}
+					}
+				}
+			}
+			return true;
+		}
+	}
+
 
 	public static class CrewExtensions
 	{
