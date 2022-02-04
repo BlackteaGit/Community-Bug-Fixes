@@ -27,78 +27,124 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
-		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
-		[HarmonyPatch(typeof(LatticeRepairEffect), "invalidIndex")]
-		public class LatticeRepairEffect_invalidIndex
+
+		//fixing: assigned turrets tool tips vanishing in logistics screen
+		[HarmonyPatch(typeof(LogisticsScreenRev3), "Update")]
+		public class LogisticsScreenRev3_Update
 		{
 			[HarmonyPrefix]
-			private static bool Prefix(Ship ship, ref bool __result, int ___indexRoller)
-			{
-				Color color = ship.botD[___indexRoller];
-				if (color.A == 255 || ship.cosm == null)
+			private static void Prefix(ref uint ___drawMode, LogisticsScreenRev3 __instance, float elapsed)
+			{				
+				if (___drawMode == 0U)
 				{
-					__result = true;
-					return false;
+					if (Game1.instance.IsActive)
+					{
+						if (SCREEN_MANAGER.dialogue == null)
+						{
+								___drawMode = 20U;
+								if (SCREEN_MANAGER.popupOverlay != null)
+								{
+									//this.openInventory();
+									BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+									typeof(LogisticsScreenRev3).GetMethod("openInventory", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
+								}
+								else if (PROCESS_REGISTER.transition == null)
+								{
+									__instance.updateInput(elapsed);
+								}
+							
+						}				
+					}				
 				}
-				bool flag = false;
+			}
+
+			[HarmonyPostfix]
+			private static void Postfix(ref uint ___drawMode)
+			{
+				if (___drawMode == 20U)
+				{
+					___drawMode = 0U;
+				}
+
+			}
+
+		}
+
+
+
+
+		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
+		[HarmonyPatch(typeof(LatticeRepairEffect), "repairOne")]
+		public class LatticeRepairEffect_repairOne
+		{
+			
+			private static bool canRepair(Ship ship, int ___indexRoller)
+			{
+				if (ship.cosm == null)
+					return false;
 				for (int i = 0; i < 8; i++)
 				{
 					if (ship.cosm.tiles[___indexRoller].neighbors[i] != null && ship.cosm.tiles[___indexRoller].neighbors[i].A == byte.MaxValue && TILEBAG.isAnyArmorTileColor(ref ship.botD[Array.IndexOf(ship.cosm.tiles, ship.cosm.tiles[___indexRoller].neighbors[i])]))
-					{								
-						flag = true;
+					{
+						return true;
 					}
 					else if (ship.cosm.tiles[___indexRoller].neighbors[i] != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner.hitpoints == ship.cosm.tiles[___indexRoller].neighbors[i].owner.hitpointsMax)
-					{	
-						if(ship.cosm.tiles[___indexRoller].neighbors[i].owner.IsRooted(ship))
+					{
+						if (ship.cosm.tiles[___indexRoller].neighbors[i].owner.IsRooted(ship))
 						{
 							for (int k = 0; k < ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles.Length; k++)
 							{
 								for (int j = 0; j < 8; j++)
 								{
-									if (ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j] != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner!= null 
+									if (ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j] != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner != null
 									&& ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.hitpoints == ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.hitpointsMax &&
 									ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.IsRooted(ship))
 									{
-										flag = true;
+										return true;
 									}
 								}
 							}
 						}
 					}
 				}
-				if (!flag)
+				return false;
+			}
+
+			[HarmonyPrefix]
+			private static bool Prefix(Ship ship, ref int ___indexRoller, LatticeRepairEffect __instance)
+			{
+				int num = ship.botD.Length;
+				int num2 = num / 8;
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+				___indexRoller += RANDOM.Next(ship.Width);
+				if (___indexRoller >= num)
 				{
-					__result = true;
-					return false;
+					___indexRoller = 0;
 				}
-				if (TILEBAG.isAnyArmorTileColor(ref color))
+				int num3 = 0;
+				var args = new object[] { ship };
+				while (num3 < num2 && (bool)typeof(LatticeRepairEffect).GetMethod("invalidIndex", flags, null, new Type[] { typeof(Ship) }, null).Invoke(__instance, args))
 				{
-					if (___indexRoller >= ship.Width && ship.botD[___indexRoller - ship.Width].A > 0)
+					___indexRoller += 2;
+					num3 += 2;
+					if (___indexRoller >= num)
 					{
-						__result = false;
-						return false;
-					}
-					if (___indexRoller < ship.botD.Length - 1 && ship.botD[___indexRoller + 1].A > 0)
-					{
-						__result = false;
-						return false;
-					}
-					if (___indexRoller < ship.botD.Length - ship.Width - 1 && ship.botD[___indexRoller + ship.Width].A > 0)
-					{
-						__result = false;
-						return false;
-					}
-					if (___indexRoller > 1 && ship.botD[___indexRoller - 1].A > 0)
-					{
-						__result = false;
-						return false;
+						___indexRoller = 0;
 					}
 				}
-				__result = true;
+				if (num3 < num2 && canRepair(ship,___indexRoller))
+				{
+					Color color = ship.botD[___indexRoller];
+					SpriteUpdate spriteUpdate = SpriteUpdate.newPooled();
+					spriteUpdate.add(___indexRoller, false, false, (byte)(byte.MaxValue - color.A));
+					ship.botD[___indexRoller].A = byte.MaxValue;
+					ship.dataChangedB = true;
+					ship.publisher.publishClient(spriteUpdate);
+				}
 				return false;
 			}
 		}
-
+	
 		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
 		[HarmonyPatch(typeof(NanoAura), "repairBot")]
 		public class NanoAura_repairBot
@@ -263,8 +309,10 @@ namespace Community_Bug_Fixes
 						foreach (var crew in ___ship.cosm.crew.Values)
 						{
 							if (crew.faction == ___ship.faction && crew.team?.threats != null)
+							{ 
 								crew.team.threats.Remove(threatFaction);
-							break;
+								break;
+							}
 						}
 					}
 				}
