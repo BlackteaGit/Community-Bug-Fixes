@@ -15,6 +15,7 @@ using Module = CoOpSpRpG.Module;
 using System.Collections.Concurrent;
 using Console = CoOpSpRpG.Console;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Community_Bug_Fixes
 {
@@ -27,6 +28,154 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		//QoL: you can sent ally ships to the homebase with travel/higgs drive.		
+		[HarmonyPatch(typeof(WorldRev3), "globalPlaceShip")]
+		public class WorldRev3_globalPlaceShip
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(Ship s, WorldRev3 __instance)
+			{
+				bool activesession = false;
+				foreach (BattleSession battleSession in __instance.openSessions)
+				{
+					if (battleSession.grid == s.grid)
+					{
+						activesession = true;
+						if (battleSession.grid != CONFIG.spHomeGrid && s.GetType() == typeof(Ship) && s.faction == 2UL && (PLAYER.currentShip == null || PLAYER.currentShip != null && PLAYER.currentShip.id != s.id) 
+						&& s.cosm?.crew?.Values.First()?.team != null && s.cosm.crew.Values.First().team.goalType == ConsoleGoalType.warp_jump && s.cosm.crew.Values.First().team.destination == PLAYER.currentGame.position)
+						{
+							if ( battleSession != PLAYER.currentSession)
+							{
+								if (PLAYER.currentSession?.neighbors != null && !PLAYER.currentSession.neighbors.Contains(battleSession))
+								{
+									//teleport if about to enter an inactive session
+									s.grid.X = CONFIG.spHomeGrid.X;
+									s.grid.Y = CONFIG.spHomeGrid.Y;
+									__instance.database.getPuppet(s);
+									return false;
+								}								
+							}
+						}
+						break;
+					}
+				}
+				if(!activesession)
+				{
+					if (s.grid != CONFIG.spHomeGrid && s.GetType() == typeof(Ship) && s.faction == 2UL && (PLAYER.currentShip == null || PLAYER.currentShip != null && PLAYER.currentShip.id != s.id)
+						&& s.cosm?.crew?.Values.First()?.team != null && s.cosm.crew.Values.First().team.goalType == ConsoleGoalType.warp_jump && s.cosm.crew.Values.First().team.destination == PLAYER.currentGame.position)
+					{
+						if (PLAYER.currentSession != null && s.grid != PLAYER.currentSession.grid)
+						{
+							//teleport if about to enter an inactive session
+							s.grid.X = CONFIG.spHomeGrid.X;
+							s.grid.Y = CONFIG.spHomeGrid.Y;
+							__instance.database.getPuppet(s);
+							return false;
+						}
+					}
+				}
+				return true;
+			}
+		}
+
+		//QoL: you can sent ally ships to the homebase with travel/higgs drive.		
+		[HarmonyPatch(typeof(HailAnimation), "ownedShipLoop")]
+		public class HailAnimation_ownedShipLoop
+		{
+			[HarmonyPostfix]
+			private static void Postfix(DialogueTree lobby, BattleSession session, Crew ___representative, Ship ___targetShip)
+			{
+				DialogueTree dialogueTree = new DialogueTree();
+				lobby.addOption("Fly to the homestation.", dialogueTree);
+				dialogueTree.text = "Aye Aye Capt'n, going home as fast as I can!";
+				dialogueTree.addOption("...", lobby);
+				dialogueTree.action = delegate ()
+				{		
+					___representative.team.focus = PLAYER.currentGame.homeBaseId;
+					___representative.team.goalType = ConsoleGoalType.warp_jump;
+					___representative.team.destinationGrid = CONFIG.spHomeGrid;
+					___representative.team.destination = PLAYER.currentGame.position;
+					if(RANDOM.Next(2) == 0)
+					___targetShip.AddChatMessage("Don't worry captain, your ship is SAFE.");
+					if (RANDOM.Next(2) == 0)
+						___targetShip.AddChatMessage("You know I am a good pilot... right?");
+					if (RANDOM.Next(2) == 0)
+						___targetShip.AddChatMessage("I'm NOT gonna crash into a rock this time!");
+					if (RANDOM.Next(2) == 0)
+						___targetShip.AddChatMessage("Why do I always get the shitty jobs?");
+					if (RANDOM.Next(2) == 0)
+						___targetShip.AddChatMessage("Remember the last time I took control over your ship? That was so funny!");
+					if (RANDOM.Next(2) == 0)
+						___targetShip.AddChatMessage("See you at the homebase!");				
+				};
+			}
+		}
+
+		//QoL: you can sent ally ships to the homebase with travel/higgs drive.		
+		[HarmonyPatch(typeof(ConsoleThought), "navUpdate")]
+		public class ConsoleThought_navUpdate
+		{
+
+			[HarmonyPostfix]
+			private static void Postfix(ConsoleThought __instance, ConcurrentQueue<CrewInteriorAlert> interiorAlerts, BattleSession session, Ship ship, CoOpSpRpG.Console console, float elapsed, ref Vector2 ___desiredTargetOffset)
+			{
+				if (session != null)
+				{
+					if (__instance.state == ConsoleState.warping)
+					{
+						if (__instance.team != null && __instance.faction == 2UL && PLAYER.currentShip != null && ship != PLAYER.currentShip)
+						{
+							if (ship.boostStage == 2 && __instance.team.goalType == ConsoleGoalType.warp_jump)
+							{
+								if(ship.warpCapable)
+								{
+									ship.bonusBoost = 10000f;
+								}
+								else
+								{
+									ship.bonusBoost = 5000f;
+								}
+							}
+							else
+							{
+								ship.bonusBoost = 0;
+							}
+						}
+					}
+				}
+			}
+		}
+
+
+		//fixing: portraits of Bard
+		[HarmonyPatch(typeof(BardAgent))]
+		[HarmonyPatch(MethodType.Constructor)]
+		[HarmonyPatch(new Type[] { })]
+		public class BardAgent_BardAgent
+		{
+			[HarmonyPostfix]
+			private static void Postfix(BardAgent __instance)
+			{
+				__instance.portraitSmall = "Bard";
+				__instance.portraitLarge = "BardL";
+				__instance.portraitTiny = "BardT";
+			}
+		}
+
+		//fixing: portraits of Bard
+		[HarmonyPatch(typeof(BardAgent))]
+		[HarmonyPatch(MethodType.Constructor)]
+		[HarmonyPatch(new Type[] { typeof(BinaryReader) })]
+		public class BardAgent_BardAgentBinaryReader
+		{
+			[HarmonyPostfix]
+			private static void Postfix(BardAgent __instance)
+			{
+				__instance.portraitSmall = "Bard";
+				__instance.portraitLarge = "BardL";
+				__instance.portraitTiny = "BardT";
+			}
+		}
 
 		//fixing: assigned turrets tool tips vanishing in logistics screen
 		[HarmonyPatch(typeof(LogisticsScreenRev3), "Update")]
@@ -743,7 +892,77 @@ namespace Community_Bug_Fixes
 																	break;
 															}
 															break;
-														default:
+													case "debug_all":
+														switch (command[3].ToLower())
+														{
+															case "true":
+																CONFIG.debugAI = true;
+																CONFIG.debugAI_DrawAim = true;
+																CONFIG.debugAI_DrawAvoidance = true;
+																CONFIG.debugAI_DrawNavAreas = true;
+																CONFIG.debugAI_DrawNavSections = true;
+																CONFIG.debugAI_DrawPathfinding = true;
+																CONFIG.debugAnimations = true;
+																CONFIG.debugArtThread = true;
+																CONFIG.debugBatchProcessProfToFlt = true;												
+																CONFIG.debugCamera = true;
+																CONFIG.debugCollisionAvoidance = true;
+																CONFIG.debugCosm= true;
+																CONFIG.debugDesign = true;
+																CONFIG.debugExtensions= true;
+																CONFIG.debugFactions = true;
+																CONFIG.debugFlotillas = true;
+																CONFIG.debugGuns = true;
+																CONFIG.debugHacking = true;
+																CONFIG.debugInventory= true;
+																CONFIG.debugMap = true;
+																CONFIG.debugProfiles = true;
+																CONFIG.debugQuests = true;
+																CONFIG.debugSaves = true;
+																CONFIG.debugShips = true;
+																CONFIG.debugShips_DrawVelocities = true;
+																CONFIG.debugWriteAllShipData = true;
+																CONFIG.generalDebugging = true;
+
+																SCREEN_MANAGER.alerts.Enqueue("all debugging flags enabled");
+																break;
+															case "false":
+																CONFIG.debugAI = false;
+																CONFIG.debugAI_DrawAim = false;
+																CONFIG.debugAI_DrawAvoidance = false;
+																CONFIG.debugAI_DrawNavAreas = false;
+																CONFIG.debugAI_DrawNavSections = false;
+																CONFIG.debugAI_DrawPathfinding = false;
+																CONFIG.debugAnimations = false;
+																CONFIG.debugArtThread = false;
+																CONFIG.debugBatchProcessProfToFlt = false;
+																CONFIG.debugCamera = false;
+																CONFIG.debugCollisionAvoidance = false;
+																CONFIG.debugCosm = false;
+																CONFIG.debugDesign = false;
+																CONFIG.debugExtensions = false;
+																CONFIG.debugFactions = false;
+																CONFIG.debugFlotillas = false;
+																CONFIG.debugGuns = false;
+																CONFIG.debugHacking = false;
+																CONFIG.debugInventory = false;
+																CONFIG.debugMap = false;
+																CONFIG.debugProfiles = false;
+																CONFIG.debugQuests = false;
+																CONFIG.debugSaves = false;
+																CONFIG.debugShips = false;
+																CONFIG.debugShips_DrawVelocities = false;
+																CONFIG.debugWriteAllShipData = false;
+																CONFIG.generalDebugging = false;
+
+																SCREEN_MANAGER.alerts.Enqueue("all debugging flags disabled");
+																break;
+															default:
+																SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																break;
+														}
+														break;
+													default:
 															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
 															break;
 													}
@@ -758,7 +977,8 @@ namespace Community_Bug_Fixes
 													SCREEN_MANAGER.widgetChat.AddMessage("> unlock hulls", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> delete hull *name*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> config interior_effects *true/false*", MessageTarget.Whisper);
-													break;
+													SCREEN_MANAGER.widgetChat.AddMessage("> config debug_all *true/false*", MessageTarget.Whisper);
+												break;
 												default:
 													SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
 													break;
@@ -3303,8 +3523,6 @@ namespace Community_Bug_Fixes
 			return true;
 		}
 	}
-
-
 	public static class CrewExtensions
 	{
 		static readonly ConditionalWeakTable<Crew, ShallNotPassObject> shallnotpass = new ConditionalWeakTable<Crew, ShallNotPassObject>();
