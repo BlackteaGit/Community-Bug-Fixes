@@ -28,6 +28,65 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		//qol: ally crew will no longer assume control of the ship if Player orders the crew away from consoles and puts them on hold before leaving the ship.
+		[HarmonyPatch(typeof(CrewManager), "checkConsoles")]
+		public class CrewManager_checkConsoles
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(CrewManager __instance)
+			{
+				bool flag = true;
+				if (__instance.currentCosm.ship != null && __instance.currentCosm.ship.id == PLAYER.currentTeam.ownedShip)
+				{
+					flag = false;
+				}
+				else
+				{
+					using (IEnumerator<Crew> enumerator = __instance.currentCosm.crew.Values.GetEnumerator())
+					{
+						while (enumerator.MoveNext())
+						{
+							if (enumerator.Current.isPlayer)
+							{
+								flag = false;
+							}
+						}
+					}
+				}
+				if (flag)
+				{
+					foreach (ConsoleAccess consoleAccess in __instance.currentCosm.consoles)
+					{
+						if (consoleAccess.console != null && consoleAccess.console.isFree())
+						{
+							bool flag2 = false;
+							foreach (byte key in __instance.currentCosm.crew.Keys)
+							{
+								if (flag2)
+								{
+									break;
+								}
+								if (__instance.currentCosm.crew[key].state == CrewState.idle && !__instance.currentCosm.crew[key].isPlayer && PLAYER.currentTeam.orderid == 0)
+								{
+									ModTile[] tiles = consoleAccess.tiles;
+									for (int i = 0; i < tiles.Length; i++)
+									{
+										if (!tiles[i].blocking)
+										{
+											__instance.currentCosm.crew[key].setGoal(consoleAccess.tiles[0]);
+											flag2 = true;
+											break;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				return false;
+			}
+		}
+
 		//fixing: crash in logistics screen while assigning turrets if your crew is on that ship.
 		[HarmonyPatch(typeof(ShipAIManager), "stepAI")]
 		public class ShipAIManager_stepAI
@@ -964,7 +1023,7 @@ namespace Community_Bug_Fixes
 																	break;
 															}
 															break;
-													case "debug_all":
+													case "all_flags":
 														switch (command[3].ToLower())
 														{
 															case "true":
@@ -1049,7 +1108,7 @@ namespace Community_Bug_Fixes
 													SCREEN_MANAGER.widgetChat.AddMessage("> unlock hulls", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> delete hull *name*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> config interior_effects *true/false*", MessageTarget.Whisper);
-													SCREEN_MANAGER.widgetChat.AddMessage("> config debug_all *true/false*", MessageTarget.Whisper);
+													SCREEN_MANAGER.widgetChat.AddMessage("> config all_flags *true/false*", MessageTarget.Whisper);
 												break;
 												default:
 													SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
