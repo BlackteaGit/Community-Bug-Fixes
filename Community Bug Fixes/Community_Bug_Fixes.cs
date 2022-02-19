@@ -66,7 +66,7 @@ namespace Community_Bug_Fixes
 								{
 									break;
 								}
-								if (__instance.currentCosm.crew[key].state == CrewState.idle && !__instance.currentCosm.crew[key].isPlayer && PLAYER.currentTeam.orderid == 0)
+								if (__instance.currentCosm.crew[key].state == CrewState.idle && !__instance.currentCosm.crew[key].isPlayer && (__instance.currentCosm.crew[key].faction != CONFIG.playerFaction || PLAYER.currentTeam.orderid == 0))
 								{
 									ModTile[] tiles = consoleAccess.tiles;
 									for (int i = 0; i < tiles.Length; i++)
