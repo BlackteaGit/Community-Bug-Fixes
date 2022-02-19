@@ -28,6 +28,78 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		//fixing: crash in logistics screen while assigning turrets if your crew is on that ship.
+		[HarmonyPatch(typeof(ShipAIManager), "stepAI")]
+		public class ShipAIManager_stepAI
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(float elapsed, ShipAIManager __instance)
+			{
+				foreach (Ship ship in __instance.session.allShips.Values)
+				{
+					if (ship.aiControlled && ship.cosm != null)
+					{
+						if (ship.aiConThoughts == null && ship.cosm.brain != null)
+						{
+							ship.aiConThoughts = new ConsoleThought(ship.cosm.brain, ship);
+						}
+						using (Dictionary<byte, Console>.ValueCollection.Enumerator enumerator2 = ship.consoles.Values.GetEnumerator())
+						{
+							while (enumerator2.MoveNext())
+							{
+								Console console = enumerator2.Current;
+								if (console.group == 0)
+								{
+									if (CONFIG.debugAI)
+									{
+										ship.aiConThoughts.navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+										continue;
+									}
+									try
+									{
+										ship.aiConThoughts.navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+										continue;
+									}
+									catch
+									{
+										continue;
+									}
+								}
+								ship.aiConThoughts.gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+							}
+							continue;
+						}
+					}
+					foreach (Console console2 in ship.consoles.Values)
+					{
+						if (ship.cosm != null && console2.crew != null && !console2.crew.isPlayer && console2.crew.conThoughts != null && console2.crew.state == CrewState.operating) //added missing null check for ship.cosm
+						{
+							if (console2.group == 0)
+							{
+								if (CONFIG.debugAI)
+								{
+									console2.crew.conThoughts.navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
+									continue;
+								}
+								try
+								{
+									console2.crew.conThoughts.navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
+									continue;
+								}
+								catch
+								{
+									console2.crew = null;
+									continue;
+								}
+							}
+							console2.crew.conThoughts.gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
+						}
+					}
+				}
+				return false;
+			}
+		}
+
 		//QoL: you can sent ally ships to the homebase with travel/higgs drive.		
 		[HarmonyPatch(typeof(WorldRev3), "globalPlaceShip")]
 		public class WorldRev3_globalPlaceShip
