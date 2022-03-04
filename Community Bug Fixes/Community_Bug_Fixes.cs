@@ -28,7 +28,30 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		//fixing: adding crew to AI ships which spawn with less crew then consoles.
+
+		[HarmonyPatch(typeof(WorldActor), "getShip", new Type[] { typeof(byte) })]
+		public class WorldActor_getShip
+		{
+			[HarmonyPostfix]
+			private static void Postfix(ref Ship __result)
+			{
+				if (__result != null && __result.faction != 2UL && __result.cosm?.crew != null && __result.cosm.crew.Count > 0)
+				{
+					if (__result.cosm.crew.Count <= __result.cosm.consoles.Count)
+					{
+						int crewtoadd = __result.cosm.consoles.Count - __result.cosm.crew.Count;
+						for (int i = 0; i < crewtoadd; i++)
+						{
+							__result.cosm.addOneCrew();
+						}					
+					}
+				}
+			}
+		}
+
 		//qol: ally crew will no longer assume control of the ship if Player orders the crew away from consoles and puts them on hold before leaving the ship.
+
 		[HarmonyPatch(typeof(CrewManager), "checkConsoles")]
 		public class CrewManager_checkConsoles
 		{
@@ -86,8 +109,10 @@ namespace Community_Bug_Fixes
 				return false;
 			}
 		}
+		
 
 		//fixing: crash in logistics screen while assigning turrets if your crew is on that ship.
+		
 		[HarmonyPatch(typeof(ShipAIManager), "stepAI")]
 		public class ShipAIManager_stepAI
 		{
@@ -98,25 +123,29 @@ namespace Community_Bug_Fixes
 				{
 					if (ship.aiControlled && ship.cosm != null)
 					{
-						if (ship.aiConThoughts == null && ship.cosm.brain != null)
+						if (ship.cosm.brain == null)
 						{
-							ship.aiConThoughts = new ConsoleThought(ship.cosm.brain, ship);
+							continue;
 						}
 						using (Dictionary<byte, Console>.ValueCollection.Enumerator enumerator2 = ship.consoles.Values.GetEnumerator())
 						{
 							while (enumerator2.MoveNext())
 							{
 								Console console = enumerator2.Current;
+								if (!ship.aiConThoughts.ContainsKey((int)console.group))
+								{
+									ship.aiConThoughts[(int)console.group] = new ConsoleThought(ship.cosm.brain, ship);
+								}
 								if (console.group == 0)
 								{
 									if (CONFIG.debugAI)
 									{
-										ship.aiConThoughts.navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+										ship.aiConThoughts[(int)console.group].navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
 										continue;
 									}
 									try
 									{
-										ship.aiConThoughts.navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+										ship.aiConThoughts[(int)console.group].navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
 										continue;
 									}
 									catch
@@ -124,14 +153,27 @@ namespace Community_Bug_Fixes
 										continue;
 									}
 								}
-								ship.aiConThoughts.gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+								if (CONFIG.debugAI)
+								{
+									ship.aiConThoughts[(int)console.group].gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+								}
+								else
+								{
+									try
+									{
+										ship.aiConThoughts[(int)console.group].gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+									}
+									catch
+									{
+									}
+								}
 							}
 							continue;
 						}
 					}
 					foreach (Console console2 in ship.consoles.Values)
 					{
-						if (ship.cosm != null && console2.crew != null && !console2.crew.isPlayer && console2.crew.conThoughts != null && console2.crew.state == CrewState.operating) //added missing null check for ship.cosm
+						if (ship.cosm != null && console2.crew != null && !console2.crew.isPlayer && console2.crew.conThoughts != null && console2.crew.state == CrewState.operating)
 						{
 							if (console2.group == 0)
 							{
@@ -151,13 +193,28 @@ namespace Community_Bug_Fixes
 									continue;
 								}
 							}
-							console2.crew.conThoughts.gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
+							if (CONFIG.debugAI)
+							{
+								console2.crew.conThoughts.gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
+							}
+							else
+							{
+								try
+								{
+									console2.crew.conThoughts.gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
+								}
+								catch
+								{
+									console2.crew = null;
+								}
+							}
 						}
 					}
 				}
 				return false;
 			}
 		}
+	
 
 		//QoL: you can sent ally ships to the homebase with travel/higgs drive.		
 		[HarmonyPatch(typeof(WorldRev3), "globalPlaceShip")]
@@ -354,6 +411,7 @@ namespace Community_Bug_Fixes
 
 
 		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
+		
 		[HarmonyPatch(typeof(LatticeRepairEffect), "repairOne")]
 		public class LatticeRepairEffect_repairOne
 		{
@@ -424,45 +482,95 @@ namespace Community_Bug_Fixes
 				return false;
 			}
 		}
-	
+	    
 		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
+		
 		[HarmonyPatch(typeof(NanoAura), "repairBot")]
 		public class NanoAura_repairBot
 		{
+
+			private static bool invalidIndex(MicroCosm cosm, ModTile tile)
+			{
+				int indexRoller = Array.IndexOf(cosm.tiles, tile);
+				if (indexRoller >= cosm.ship.Width && cosm.ship.botD[indexRoller - cosm.ship.Width].A > 0)
+				{
+					return false;
+				}
+				if (indexRoller < cosm.ship.botD.Length - 1 && cosm.ship.botD[indexRoller + 1].A > 0)
+				{
+					return false;
+				}
+				if (indexRoller < cosm.ship.botD.Length - cosm.ship.Width - 1 && cosm.ship.botD[indexRoller + cosm.ship.Width].A > 0)
+				{
+					return false;
+				}
+				if (indexRoller > 1 && cosm.ship.botD[indexRoller - 1].A > 0)
+				{
+					return false;
+				}
+			
+				return true;
+			}
+
+
 			[HarmonyPrefix]
 			private static void Prefix(Crew source)
 			{
+
 				int count = source.currentCosm.modules.Count;
-				int num = RANDOM.Next(count);
-				int num2 = 0;
-				while (num2 < count && source.currentCosm.modules[num].hitpoints == source.currentCosm.modules[num].hitpointsMax)
+				int number = RANDOM.Next(count);
+				int number2 = 0;
+				SpriteUpdate spriteUpdate = null;
+				while (number2 < count) //&& source.currentCosm.modules[number].hitpoints == source.currentCosm.modules[number].hitpointsMax)
 				{
-					for(int i = 0; i < source.currentCosm.modules[num].tiles.Length; i++ )
+					
+					for (int i = 0; i < source.currentCosm.modules[number].tiles.Length; i++ )
 					{
 						for(int j = 0; j < 8 ; j++)
 						{
-							if(source.currentCosm.modules[num].tiles[i].neighbors[j] != null && source.currentCosm.modules[num].tiles[i].neighbors[j].A == 0)
+							if(source.currentCosm.modules[number].hitpoints == source.currentCosm.modules[number].hitpointsMax && source.currentCosm.modules[number].tiles[i].neighbors[j] != null && source.currentCosm.modules[number].tiles[i].neighbors[j].A == 0 && source.currentCosm.modules[number].tiles[i].neighbors[j].repairable)
 							{
 
-								SpriteUpdate spriteUpdate = SpriteUpdate.newPooled();
-								spriteUpdate.add(source.currentCosm.modules[num].tiles[i].neighbors[j].X, false, false, 1);
-								source.currentCosm.modules[num].tiles[i].neighbors[j].A += 1;								
+								if (spriteUpdate == null)
+								{
+									spriteUpdate = SpriteUpdate.newPooled();
+								}
+								spriteUpdate.add(source.currentCosm.modules[number].tiles[i].neighbors[j].X, false, false, 1);
+								ModTile modTile = source.currentCosm.modules[number].tiles[i].neighbors[j];
+								modTile.A += 1;
+								
+							}
+							if(source.currentCosm.modules[number].hitpoints != source.currentCosm.modules[number].hitpointsMax && source.currentCosm.modules[number].tiles[i].A == 0						
+							&& source.currentCosm.modules[number].tiles[i].neighbors[j] != null && source.currentCosm.modules[number].tiles[i].neighbors[j].hasNeighbors())
+							{
+								if (spriteUpdate == null)
+								{
+									spriteUpdate = SpriteUpdate.newPooled();
+								}
+								spriteUpdate.add(source.currentCosm.modules[number].tiles[i].X, false, false, 1);
+								ModTile modTile = source.currentCosm.modules[number].tiles[i];
+								modTile.A += 1;
 								source.currentCosm.publisher.publishCosm(spriteUpdate);
 								return;
 							}
                         }
 					}
-					num2++;
-					num++;
-					if (num >= count)
+					number2++;
+					number++;
+					if (number >= count)
 					{
-						num = 0;
-					}
+						number = 0;
+					}				
 				}
+				if (spriteUpdate != null)
+				{
+					source.currentCosm.publisher.publishCosm(spriteUpdate);
+				}
+
 			}
 
 		}
-
+		
 
 		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
 		[HarmonyPatch(typeof(Module), "repairWhole")]
@@ -528,11 +636,12 @@ namespace Community_Bug_Fixes
 						}
 					}
 				}
-				if (!flag)
+				if (!flag && !__instance.IsRooted(__instance.cosm.ship))
 				{
 					__result = false;
 					return false;
 				}
+				
 				int num4 = __instance.tiles.Length;
 				while (num < amt && num4 > 0)
 				{
