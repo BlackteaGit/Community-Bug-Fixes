@@ -54,6 +54,38 @@ namespace Community_Bug_Fixes
 								};
 								__instance.icons[node.grid].Add(poiicon);
 							}
+							else if(__instance.icons.ContainsKey(node.grid) && __instance.icons[node.grid].Exists(icon => icon.flag == "econ_goo_factory_1" && icon.position == node.position && icon.artSource == Rectangle.Empty))
+							{
+								var result = __instance.icons[node.grid].Find(icon => icon.flag == "econ_goo_factory_1" && icon.position == node.position && icon.artSource == Rectangle.Empty);
+								__instance.icons[node.grid].Remove(result);
+								var poiicon = new POEIcon
+								{
+									artSource = new Rectangle(0, 0, 64, 64),
+									flag = result.flag,
+									globallyVisible = result.globallyVisible,
+									position = result.position,
+									seen = result.seen,
+									sensorVisible = result.sensorVisible
+								};
+								__instance.icons[node.grid].Add(poiicon);
+
+						}
+							/*
+							else if(!__instance.icons.ContainsKey(node.grid))
+							{
+
+								var poiicon = new POEIcon
+								{
+									artSource = new Rectangle(0, 0, 64, 64),
+									flag = "econ_goo_factory_1",
+									globallyVisible = false,
+									position = node.position,
+									seen = false,
+									sensorVisible = true
+								};
+								__instance.icons.Add(node.grid, new List<POEIcon>{poiicon});
+							}
+							*/
 						}
 					}
 			}
