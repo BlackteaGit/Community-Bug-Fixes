@@ -16,6 +16,7 @@ using System.Collections.Concurrent;
 using Console = CoOpSpRpG.Console;
 using System.Linq;
 using System.Threading.Tasks;
+using WaywardExtensions;
 
 namespace Community_Bug_Fixes
 {
@@ -27,6 +28,38 @@ namespace Community_Bug_Fixes
 			Harmony harmony = new Harmony("blacktea.Community_Bug_Fixes");
 			harmony.PatchAll();
 		}
+
+
+		//fixing: missing icons for grey goo factories on world map.	
+		[HarmonyPatch(typeof(WorldRev3), "applySessionData")]
+		public class WorldRev3_applySessionData
+		{
+			[HarmonyPrefix]
+			private static void Prefix(WorldRev3 __instance)
+			{
+					foreach (var node in __instance.economy.nodes)
+					{
+						if (node.type == EconomicStationType.goo_factory)
+						{
+							if (__instance.icons.ContainsKey(node.grid) && !__instance.icons[node.grid].Exists(icon => icon.flag == "econ_goo_factory_1" && icon.position == node.position))
+							{
+								var poiicon = new POEIcon
+								{
+									artSource = new Rectangle(0, 0, 64, 64),
+									flag = "econ_goo_factory_1",
+									globallyVisible = false,
+									position = node.position,
+									seen = false,
+									sensorVisible = true
+								};
+								__instance.icons[node.grid].Add(poiicon);
+							}
+						}
+					}
+			}
+
+		}
+
 
 		//fixing: adding crew to AI ships which spawn with less crew then consoles.
 
@@ -829,382 +862,432 @@ namespace Community_Bug_Fixes
 									switch (command[0].ToLower())
 									{
 										case "debug":
+										if (command.Length > 1)
+										{
 											switch (command[1].ToLower())
 											{
 												case "spawn":
-													switch (command[2].ToLower())
+													if (command.Length > 2)
 													{
-														case "budd":
-															if (PLAYER.currentSession.valuesOfInterest != null)
-															{
-																for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
+														switch (command[2].ToLower())
+														{
+															case "budd":
+																if (PLAYER.currentSession.valuesOfInterest != null)
 																{
-																	if (PLAYER.currentSession.valuesOfInterest[i] == "ctp_big_station")
+																	for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
 																	{
-																		Vector2 position = PLAYER.currentSession.pointsOfInterest[i];
-																		WorldActor worldActor = SHIPBAG.makeTemplate(95);
-																		worldActor.id = PLAYER.currentWorld.getUID();
-																		ulong id = worldActor.id;
-																		worldActor.faction = 4UL;
-																		worldActor.position = position;
-																		worldActor.rotation = RANDOM.randomRotation();
-																		worldActor.hackingAvailable = 0f;
-																		worldActor.data = new CosmMetaData();
-																		worldActor.data.crew = new Crew[0];
-																		worldActor.dominantTeam = new CrewTeam();
-																		worldActor.dominantTeam.aggroRadius = 6000f;
-																		worldActor.dominantTeam.threats.Add(2UL);
-																		worldActor.dominantTeam.threats.Add(3UL);
-																		worldActor.dominantTeam.threats.Add(5UL);
-																		Crew crew = new Crew();
-																		crew.id = 0;
-																		crew.name = "Budd";
-																		crew.questTag = "kill_budd";
-																		crew.heldItem = new Gun(19f, GunSpawnFlags.force_special);
-																		crew.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
-																		crew.faction = 4UL;
-																		crew.factionless = false;
-																		crew.team = worldActor.dominantTeam;
-																		worldActor.data.addCrew(crew);
-																		Crew crew2 = new Crew();
-																		crew2.name = "Greg";
-																		crew2.id = 1;
-																		crew2.questTag = "gary_v_greg";
-																		crew2.heldItem = new Gun(19f, GunSpawnFlags.force_shotgun);
-																		crew2.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
-																		crew2.faction = 4UL;
-																		crew2.factionless = false;
-																		crew2.team = worldActor.dominantTeam;
-																		worldActor.data.addCrew(crew2);
-																		for (int j = 0; j < 4; j++)
+																		if (PLAYER.currentSession.valuesOfInterest[i] == "ctp_big_station")
 																		{
-																			Crew crew3 = new Crew();
-																			crew3.id = (byte)(j + 2);
-																			crew3.outfit(18f, 15f);
-																			crew3.faction = 4UL;
-																			crew3.factionless = false;
-																			crew3.team = worldActor.dominantTeam;
-																			worldActor.data.addCrew(crew3);
-																		}
-																		worldActor.data.buildStorage(worldActor);
-																		if (worldActor.data.storage != null)
-																		{
-																			for (int j = 0; j < 500; j++)
+																			Vector2 position = PLAYER.currentSession.pointsOfInterest[i];
+																			WorldActor worldActor = SHIPBAG.makeTemplate(95);
+																			worldActor.id = PLAYER.currentWorld.getUID();
+																			ulong id = worldActor.id;
+																			worldActor.faction = 4UL;
+																			worldActor.position = position;
+																			worldActor.rotation = RANDOM.randomRotation();
+																			worldActor.hackingAvailable = 0f;
+																			worldActor.data = new CosmMetaData();
+																			worldActor.data.crew = new Crew[0];
+																			worldActor.dominantTeam = new CrewTeam();
+																			worldActor.dominantTeam.aggroRadius = 6000f;
+																			worldActor.dominantTeam.threats.Add(2UL);
+																			worldActor.dominantTeam.threats.Add(3UL);
+																			worldActor.dominantTeam.threats.Add(5UL);
+																			Crew crew = new Crew();
+																			crew.id = 0;
+																			crew.name = "Budd";
+																			crew.questTag = "kill_budd";
+																			crew.heldItem = new Gun(19f, GunSpawnFlags.force_special);
+																			crew.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
+																			crew.faction = 4UL;
+																			crew.factionless = false;
+																			crew.team = worldActor.dominantTeam;
+																			worldActor.data.addCrew(crew);
+																			Crew crew2 = new Crew();
+																			crew2.name = "Greg";
+																			crew2.id = 1;
+																			crew2.questTag = "gary_v_greg";
+																			crew2.heldItem = new Gun(19f, GunSpawnFlags.force_shotgun);
+																			crew2.heldArmor = new CrewArmor(17f, ArmorSpawnFlags.no_oxygen | ArmorSpawnFlags.force_heavy);
+																			crew2.faction = 4UL;
+																			crew2.factionless = false;
+																			crew2.team = worldActor.dominantTeam;
+																			worldActor.data.addCrew(crew2);
+																			for (int j = 0; j < 4; j++)
 																			{
-																				worldActor.data.addItem(new InventoryItem(InventoryItemType.grey_goo));
+																				Crew crew3 = new Crew();
+																				crew3.id = (byte)(j + 2);
+																				crew3.outfit(18f, 15f);
+																				crew3.faction = 4UL;
+																				crew3.factionless = false;
+																				crew3.team = worldActor.dominantTeam;
+																				worldActor.data.addCrew(crew3);
 																			}
-																		}
-																		Ship ship = worldActor.getShip(0);
-																		if (PLAYER.currentShip != null)
-																		{
-																			worldActor.dominantTeam.focus = PLAYER.currentShip.id;
-																			worldActor.dominantTeam.goalType = ConsoleGoalType.kill_target;
-																		}
-																		SCREEN_MANAGER.widgetChat.AddMessage("Budd ship has arrived!", MessageTarget.Command);
-																		PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
-																		ship.cosm.init();
-																		ship.cosm.rearm = true;
-																		foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
-																		{
-																			if (triggerEvent.GetType() == typeof(KillBuddQuestRev2))
+																			worldActor.data.buildStorage(worldActor);
+																			if (worldActor.data.storage != null)
 																			{
-																				(triggerEvent as KillBuddQuestRev2).buddID = id;
+																				for (int j = 0; j < 500; j++)
+																				{
+																					worldActor.data.addItem(new InventoryItem(InventoryItemType.grey_goo));
+																				}
 																			}
-																			if (triggerEvent.GetType() == typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2"))
+																			Ship ship = worldActor.getShip(0);
+																			if (PLAYER.currentShip != null)
 																			{
-																				//(triggerEvent as GaryVsGregRev2).buddID = id;
-																				typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2").GetField("buddID", flags).SetValue(triggerEvent, id);
+																				worldActor.dominantTeam.focus = PLAYER.currentShip.id;
+																				worldActor.dominantTeam.goalType = ConsoleGoalType.kill_target;
+																			}
+																			SCREEN_MANAGER.widgetChat.AddMessage("Budd ship has arrived!", MessageTarget.Command);
+																			PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
+																			ship.cosm.init();
+																			ship.cosm.rearm = true;
+																			foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
+																			{
+																				if (triggerEvent.GetType() == typeof(KillBuddQuestRev2))
+																				{
+																					(triggerEvent as KillBuddQuestRev2).buddID = id;
+																				}
+																				if (triggerEvent.GetType() == typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2"))
+																				{
+																					//(triggerEvent as GaryVsGregRev2).buddID = id;
+																					typeof(TriggerEvent).Assembly.GetType("CoOpSpRpG.GaryVsGregRev2").GetField("buddID", flags).SetValue(triggerEvent, id);
+																				}
 																			}
 																		}
 																	}
 																}
-															}
-															break;
-														case "small_pirate":
-															foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
-															{
-																if (factionControllerRev.GetType() == typeof(PirateFactionRev2))
+																break;
+															case "small_pirate":
+																foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
 																{
-																	PirateFactionRev2 pirateFaction = factionControllerRev as PirateFactionRev2;
-																	if (pirateFaction.ctpSystem.X == 0 && pirateFaction.ctpSystem.Y == 0 && PLAYER.currentSession != null)
+																	if (factionControllerRev.GetType() == typeof(PirateFactionRev2))
 																	{
-																		pirateFaction.ctpSystem = PLAYER.currentSession.grid;
-																	}
-																	int amount = 1;
-																	if (command.Length > 3)
-																	{
-																		int parsed;
-																		if (int.TryParse(command[3], out parsed))
-																		{	
-																			if(parsed > amount)
-																			amount = parsed;
-																		}
-																		else
+																		PirateFactionRev2 pirateFaction = factionControllerRev as PirateFactionRev2;
+																		if (pirateFaction.ctpSystem.X == 0 && pirateFaction.ctpSystem.Y == 0 && PLAYER.currentSession != null)
 																		{
-																			SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-																			return;
+																			pirateFaction.ctpSystem = PLAYER.currentSession.grid;
 																		}
-																	}
-																	for (int i = 0; i < amount; i++)
-																	{
-																		int spawnIndex = (typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>)[RANDOM.Next((typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>).Count)];
-																		ulong ind = pirateFaction.spawnShip(spawnIndex, pirateFaction.ctpSystem, pirateFaction.ctpHome, 1f);
-																		//pirateFaction.ctSmallGoons.Add(ind);
-																		(typeof(PirateFactionRev2).GetField("ctSmallGoons", flags).GetValue(pirateFaction) as List<ulong>).Add(ind);
-																		if (pirateFaction.ships.ContainsKey(ind))
+																		int amount = 1;
+																		if (command.Length > 3)
 																		{
-																			NonPlayerShip nonPlayerShipSmall = pirateFaction.ships[ind];
-																			nonPlayerShipSmall.outfit(18f, 15f);
-																			nonPlayerShipSmall.addThreat(2UL);
-																			nonPlayerShipSmall.addThreat(3UL);
-																			nonPlayerShipSmall.addThreat(5UL);
-																			nonPlayerShipSmall.addThreat(7UL);
-																			nonPlayerShipSmall.setQuestNPC("bust_pirates");
-																			if (PLAYER.currentShip != null)
+																			int parsed;
+																			if (int.TryParse(command[3], out parsed))
 																			{
-																				nonPlayerShipSmall.patrolTo(PLAYER.currentShip.grid, PLAYER.currentShip.position);
+																				if (parsed > amount)
+																					amount = parsed;
 																			}
 																			else
 																			{
-																				nonPlayerShipSmall.patrolTo(pirateFaction.ctpSystem, pirateFaction.ctpHome);
+																				SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																				return;
 																			}
-																			int quantity = 8 + RANDOM.Next(5);
-																			nonPlayerShipSmall.addLoot(quantity, LootTableType.pirate_b);
-																			nonPlayerShipSmall.aggroRadius = 1500f;
 																		}
-																	}
-																	SCREEN_MANAGER.widgetChat.AddMessage($"{amount} ship(s) spawned succesfully", MessageTarget.Whisper);
-																	break;
-																}
-															}															
-															break;
-														case "big_pirate":
-															foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
-															{
-																if (factionControllerRev.GetType() == typeof(PirateFactionRev2))
-																{
-																	PirateFactionRev2 pirateFaction = factionControllerRev as PirateFactionRev2;
-																	if (pirateFaction.ctpSystem.X == 0 && pirateFaction.ctpSystem.Y == 0 && PLAYER.currentSession != null)
-																	{
-																		pirateFaction.ctpSystem = PLAYER.currentSession.grid;
-																	}
-																	int amount = 1;
-																	if (command.Length > 3)
-																	{
-																		int parsed;
-																		if (int.TryParse(command[3], out parsed))
-																		{	
-																			if(parsed > amount)
-																			amount = parsed;
-																		}
-																		else
+																		for (int i = 0; i < amount; i++)
 																		{
-																			SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-																			return;
+																			int spawnIndex = (typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>)[RANDOM.Next((typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>).Count)];
+																			ulong ind = pirateFaction.spawnShip(spawnIndex, pirateFaction.ctpSystem, pirateFaction.ctpHome, 1f);
+																			//pirateFaction.ctSmallGoons.Add(ind);
+																			(typeof(PirateFactionRev2).GetField("ctSmallGoons", flags).GetValue(pirateFaction) as List<ulong>).Add(ind);
+																			if (pirateFaction.ships.ContainsKey(ind))
+																			{
+																				NonPlayerShip nonPlayerShipSmall = pirateFaction.ships[ind];
+																				nonPlayerShipSmall.outfit(18f, 15f);
+																				nonPlayerShipSmall.addThreat(2UL);
+																				nonPlayerShipSmall.addThreat(3UL);
+																				nonPlayerShipSmall.addThreat(5UL);
+																				nonPlayerShipSmall.addThreat(7UL);
+																				nonPlayerShipSmall.setQuestNPC("bust_pirates");
+																				if (PLAYER.currentShip != null)
+																				{
+																					nonPlayerShipSmall.patrolTo(PLAYER.currentShip.grid, PLAYER.currentShip.position);
+																				}
+																				else
+																				{
+																					nonPlayerShipSmall.patrolTo(pirateFaction.ctpSystem, pirateFaction.ctpHome);
+																				}
+																				int quantity = 8 + RANDOM.Next(5);
+																				nonPlayerShipSmall.addLoot(quantity, LootTableType.pirate_b);
+																				nonPlayerShipSmall.aggroRadius = 1500f;
+																			}
 																		}
+																		SCREEN_MANAGER.widgetChat.AddMessage($"{amount} ship(s) spawned succesfully", MessageTarget.Whisper);
+																		break;
 																	}
-																	for (int i = 0; i < amount; i++)
-																	{
-																		ulong ind = pirateFaction.spawnShip(53, pirateFaction.ctpSystem, pirateFaction.ctpHome, 1f);
-																		//pirateFaction.ctBigGoons.Add(ind);
-																		(typeof(PirateFactionRev2).GetField("ctBigGoons", flags).GetValue(pirateFaction) as List<ulong>).Add(ind);
-																		NonPlayerShip nonPlayerShipBig = pirateFaction.ships[ind];
-																		nonPlayerShipBig.outfit(18f, 15f);
-																		nonPlayerShipBig.addThreat(2UL);
-																		nonPlayerShipBig.addThreat(3UL);
-																		nonPlayerShipBig.addThreat(5UL);
-																		nonPlayerShipBig.setQuestNPC("bust_pirates_2");
-																		if (PLAYER.currentShip != null)
-																		{
-																			nonPlayerShipBig.patrolTo(PLAYER.currentShip.grid, PLAYER.currentShip.position);
-																		}
-																		else
-																		{
-																			nonPlayerShipBig.patrolTo(pirateFaction.ctpSystem, pirateFaction.ctpHome);
-																		}
-																		nonPlayerShipBig.aggroRadius = 1500f;
-																	}
-																	SCREEN_MANAGER.widgetChat.AddMessage($"{amount} ship(s) spawned succesfully", MessageTarget.Whisper);
-																	break;
-																}
-															}
-															break;
-														default:
-															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-															break;
-													}
-													break;
-												case "unlock":
-													switch (command[2].ToLower())
-													{
-														case "hulls":
-															foreach (int key in SHIPBAG.aiTemplates.Keys)
-															{
-																try
-																{
-																	CHARACTER_DATA.unlockHull(key);
-																}
-																catch
-																{
-																}
-																
-															}
-															SCREEN_MANAGER.widgetChat.AddMessage("all accessible hulls unlocked", MessageTarget.Whisper);
-															break;
-														default:
-															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-															break;
-													}
-													break;
-												case "delete":
-													switch (command[2].ToLower())
-													{
-														case "hull":
-															if(command.Length > 3)
-															{
-																SQLiteConnection dBCon = typeof(CHARACTER_DATA).GetField("dBCon", flags).GetValue(null) as SQLiteConnection;
-																string md5 = "";
-
-																var hull = SHIPBAG.shipNameDic.FirstOrDefault(x => x.Value == command[3]).Key;
-																if(hull != null)
-																{
-																	md5 = hull;
-																}
-																else
-																{
-																	
-																	SQLiteCommand sqliteCommand = new SQLiteCommand("select checksum from hulls where name = @selected and checksum LIKE @check", dBCon);
-																	sqliteCommand.Parameters.Add("@selected", DbType.String).Value = CHARACTER_DATA.selected;
-																	sqliteCommand.Parameters.Add("@check", DbType.String).Value = command[3]+"%";
-																	SQLiteDataReader sqliteDataReader = sqliteCommand.ExecuteReader();
-																	if (sqliteDataReader.Read())
-																	{
-																		md5 = sqliteDataReader["checksum"].ToString();
-																	}
-																	if(md5 == "")
-																	md5 = command[3];
-																}															
-																if (CHARACTER_DATA.hasHull(md5))
-																{
-
-																	SQLiteCommand sqliteCommand = new SQLiteCommand("delete from hulls where name = @selected and checksum = @check", dBCon);
-																	sqliteCommand.Parameters.Add("@selected", DbType.String).Value = CHARACTER_DATA.selected;
-																	sqliteCommand.Parameters.Add("@check", DbType.String).Value = md5;
-																	sqliteCommand.ExecuteNonQuery();
-
-
-																	SQLiteCommand sqliteCommand2 = new SQLiteCommand("delete from designs where name = @selected and checksum = @check", dBCon);
-																	sqliteCommand2.Parameters.Add("@selected", DbType.String).Value = CHARACTER_DATA.selected;
-																	sqliteCommand2.Parameters.Add("@check", DbType.String).Value = md5;
-																	sqliteCommand2.ExecuteNonQuery();
-
-																	SCREEN_MANAGER.widgetChat.AddMessage("hull " + md5 + "deleted succesfully", MessageTarget.Whisper);
-																}
-																else
-																{
-																	SCREEN_MANAGER.widgetChat.AddMessage("hull not found", MessageTarget.Whisper);
 																}
 																break;
-															}
-															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-															break;
-														default:
-															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-															break;
-													}
-													break;
-												case "config":
-													switch (command[2].ToLower())
-													{
-														case "interior_effects":
-															switch (command[3].ToLower())
-															{
-																case "true":
-																	CONFIG.advancedInteriorEffect = true;
-																	SCREEN_MANAGER.alerts.Enqueue("Interior effects active.");
-																	break;
-																case "false":
-																	CONFIG.advancedInteriorEffect = false;
-																	SCREEN_MANAGER.alerts.Enqueue("Interior effects inactive.");
-																	break;
-																default:
-																	SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-																	break;
-															}
-															break;
-													case "all_flags":
-														switch (command[3].ToLower())
-														{
-															case "true":
-																CONFIG.debugAI = true;
-																CONFIG.debugAI_DrawAim = true;
-																CONFIG.debugAI_DrawAvoidance = true;
-																CONFIG.debugAI_DrawNavAreas = true;
-																CONFIG.debugAI_DrawNavSections = true;
-																CONFIG.debugAI_DrawPathfinding = true;
-																CONFIG.debugAnimations = true;
-																CONFIG.debugArtThread = true;
-																CONFIG.debugBatchProcessProfToFlt = true;												
-																CONFIG.debugCamera = true;
-																CONFIG.debugCollisionAvoidance = true;
-																CONFIG.debugCosm= true;
-																CONFIG.debugDesign = true;
-																CONFIG.debugExtensions= true;
-																CONFIG.debugFactions = true;
-																CONFIG.debugFlotillas = true;
-																CONFIG.debugGuns = true;
-																CONFIG.debugHacking = true;
-																CONFIG.debugInventory= true;
-																CONFIG.debugMap = true;
-																CONFIG.debugProfiles = true;
-																CONFIG.debugQuests = true;
-																CONFIG.debugSaves = true;
-																CONFIG.debugShips = true;
-																CONFIG.debugShips_DrawVelocities = true;
-																CONFIG.debugWriteAllShipData = true;
-																CONFIG.generalDebugging = true;
-
-																SCREEN_MANAGER.alerts.Enqueue("all debugging flags enabled");
-																break;
-															case "false":
-																CONFIG.debugAI = false;
-																CONFIG.debugAI_DrawAim = false;
-																CONFIG.debugAI_DrawAvoidance = false;
-																CONFIG.debugAI_DrawNavAreas = false;
-																CONFIG.debugAI_DrawNavSections = false;
-																CONFIG.debugAI_DrawPathfinding = false;
-																CONFIG.debugAnimations = false;
-																CONFIG.debugArtThread = false;
-																CONFIG.debugBatchProcessProfToFlt = false;
-																CONFIG.debugCamera = false;
-																CONFIG.debugCollisionAvoidance = false;
-																CONFIG.debugCosm = false;
-																CONFIG.debugDesign = false;
-																CONFIG.debugExtensions = false;
-																CONFIG.debugFactions = false;
-																CONFIG.debugFlotillas = false;
-																CONFIG.debugGuns = false;
-																CONFIG.debugHacking = false;
-																CONFIG.debugInventory = false;
-																CONFIG.debugMap = false;
-																CONFIG.debugProfiles = false;
-																CONFIG.debugQuests = false;
-																CONFIG.debugSaves = false;
-																CONFIG.debugShips = false;
-																CONFIG.debugShips_DrawVelocities = false;
-																CONFIG.debugWriteAllShipData = false;
-																CONFIG.generalDebugging = false;
-
-																SCREEN_MANAGER.alerts.Enqueue("all debugging flags disabled");
+															case "big_pirate":
+																foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
+																{
+																	if (factionControllerRev.GetType() == typeof(PirateFactionRev2))
+																	{
+																		PirateFactionRev2 pirateFaction = factionControllerRev as PirateFactionRev2;
+																		if (pirateFaction.ctpSystem.X == 0 && pirateFaction.ctpSystem.Y == 0 && PLAYER.currentSession != null)
+																		{
+																			pirateFaction.ctpSystem = PLAYER.currentSession.grid;
+																		}
+																		int amount = 1;
+																		if (command.Length > 3)
+																		{
+																			int parsed;
+																			if (int.TryParse(command[3], out parsed))
+																			{
+																				if (parsed > amount)
+																					amount = parsed;
+																			}
+																			else
+																			{
+																				SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																				return;
+																			}
+																		}
+																		for (int i = 0; i < amount; i++)
+																		{
+																			ulong ind = pirateFaction.spawnShip(53, pirateFaction.ctpSystem, pirateFaction.ctpHome, 1f);
+																			//pirateFaction.ctBigGoons.Add(ind);
+																			(typeof(PirateFactionRev2).GetField("ctBigGoons", flags).GetValue(pirateFaction) as List<ulong>).Add(ind);
+																			NonPlayerShip nonPlayerShipBig = pirateFaction.ships[ind];
+																			nonPlayerShipBig.outfit(18f, 15f);
+																			nonPlayerShipBig.addThreat(2UL);
+																			nonPlayerShipBig.addThreat(3UL);
+																			nonPlayerShipBig.addThreat(5UL);
+																			nonPlayerShipBig.setQuestNPC("bust_pirates_2");
+																			if (PLAYER.currentShip != null)
+																			{
+																				nonPlayerShipBig.patrolTo(PLAYER.currentShip.grid, PLAYER.currentShip.position);
+																			}
+																			else
+																			{
+																				nonPlayerShipBig.patrolTo(pirateFaction.ctpSystem, pirateFaction.ctpHome);
+																			}
+																			nonPlayerShipBig.aggroRadius = 1500f;
+																		}
+																		SCREEN_MANAGER.widgetChat.AddMessage($"{amount} ship(s) spawned succesfully", MessageTarget.Whisper);
+																		break;
+																	}
+																}
 																break;
 															default:
 																SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
 																break;
 														}
+													}
+													else
+													{
+														SCREEN_MANAGER.widgetChat.AddMessage("invalid command parameter. type /debug ? for help.", MessageTarget.Whisper);
 														break;
-													default:
-															SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
-															break;
+													}
+													break;
+												case "unlock":
+													if (command.Length > 2)
+													{
+														switch (command[2].ToLower())
+														{
+															case "hulls":
+																foreach (int key in SHIPBAG.aiTemplates.Keys)
+																{
+																	try
+																	{
+																		CHARACTER_DATA.unlockHull(key);
+																	}
+																	catch
+																	{
+																	}
+
+																}
+																SCREEN_MANAGER.widgetChat.AddMessage("all accessible hulls unlocked", MessageTarget.Whisper);
+																break;
+															default:
+																SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																break;
+														}
+													}
+													else
+													{
+														SCREEN_MANAGER.widgetChat.AddMessage("invalid command parameter. type /debug ? for help.", MessageTarget.Whisper);
+														break;
+													}
+													break;
+												case "delete":
+													if (command.Length > 2)
+													{
+														switch (command[2].ToLower())
+														{
+															case "hull":
+																if (command.Length > 3)
+																{
+																	SQLiteConnection dBCon = typeof(CHARACTER_DATA).GetField("dBCon", flags).GetValue(null) as SQLiteConnection;
+																	string md5 = "";
+
+																	var hull = SHIPBAG.shipNameDic.FirstOrDefault(x => x.Value == command[3]).Key;
+																	if (hull != null)
+																	{
+																		md5 = hull;
+																	}
+																	else
+																	{
+
+																		SQLiteCommand sqliteCommand = new SQLiteCommand("select checksum from hulls where name = @selected and checksum LIKE @check", dBCon);
+																		sqliteCommand.Parameters.Add("@selected", DbType.String).Value = CHARACTER_DATA.selected;
+																		sqliteCommand.Parameters.Add("@check", DbType.String).Value = command[3] + "%";
+																		SQLiteDataReader sqliteDataReader = sqliteCommand.ExecuteReader();
+																		if (sqliteDataReader.Read())
+																		{
+																			md5 = sqliteDataReader["checksum"].ToString();
+																		}
+																		if (md5 == "")
+																			md5 = command[3];
+																	}
+																	if (CHARACTER_DATA.hasHull(md5))
+																	{
+
+																		SQLiteCommand sqliteCommand = new SQLiteCommand("delete from hulls where name = @selected and checksum = @check", dBCon);
+																		sqliteCommand.Parameters.Add("@selected", DbType.String).Value = CHARACTER_DATA.selected;
+																		sqliteCommand.Parameters.Add("@check", DbType.String).Value = md5;
+																		sqliteCommand.ExecuteNonQuery();
+
+
+																		SQLiteCommand sqliteCommand2 = new SQLiteCommand("delete from designs where name = @selected and checksum = @check", dBCon);
+																		sqliteCommand2.Parameters.Add("@selected", DbType.String).Value = CHARACTER_DATA.selected;
+																		sqliteCommand2.Parameters.Add("@check", DbType.String).Value = md5;
+																		sqliteCommand2.ExecuteNonQuery();
+
+																		SCREEN_MANAGER.widgetChat.AddMessage("hull " + md5 + "deleted succesfully", MessageTarget.Whisper);
+																	}
+																	else
+																	{
+																		SCREEN_MANAGER.widgetChat.AddMessage("hull not found", MessageTarget.Whisper);
+																	}
+																	break;
+																}
+																SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																break;
+															default:
+																SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																break;
+														}
+													}
+													else
+													{
+														SCREEN_MANAGER.widgetChat.AddMessage("invalid command parameter. type /debug ? for help.", MessageTarget.Whisper);
+														break;
+													}
+													break;
+												case "config":
+													if (command.Length > 2)
+													{
+														switch (command[2].ToLower())
+														{
+															case "interior_effects":
+																if (command.Length > 3)
+																{
+																	switch (command[3].ToLower())
+																	{
+																		case "true":
+																			CONFIG.advancedInteriorEffect = true;
+																			SCREEN_MANAGER.alerts.Enqueue("Interior effects active.");
+																			break;
+																		case "false":
+																			CONFIG.advancedInteriorEffect = false;
+																			SCREEN_MANAGER.alerts.Enqueue("Interior effects inactive.");
+																			break;
+																		default:
+																			SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																			break;
+																	}
+																}
+																else
+																{
+																	SCREEN_MANAGER.widgetChat.AddMessage("invalid command parameter. type /debug ? for help.", MessageTarget.Whisper);
+																	break;
+																}
+																break;
+															case "all_flags":
+																if (command.Length > 3)
+																{
+																	switch (command[3].ToLower())
+																	{
+																		case "true":
+																			CONFIG.debugAI = true;
+																			CONFIG.debugAI_DrawAim = true;
+																			CONFIG.debugAI_DrawAvoidance = true;
+																			CONFIG.debugAI_DrawNavAreas = true;
+																			CONFIG.debugAI_DrawNavSections = true;
+																			CONFIG.debugAI_DrawPathfinding = true;
+																			CONFIG.debugAnimations = true;
+																			CONFIG.debugArtThread = true;
+																			CONFIG.debugBatchProcessProfToFlt = true;
+																			CONFIG.debugCamera = true;
+																			CONFIG.debugCollisionAvoidance = true;
+																			CONFIG.debugCosm = true;
+																			CONFIG.debugDesign = true;
+																			CONFIG.debugExtensions = true;
+																			CONFIG.debugFactions = true;
+																			CONFIG.debugFlotillas = true;
+																			CONFIG.debugGuns = true;
+																			CONFIG.debugHacking = true;
+																			CONFIG.debugInventory = true;
+																			CONFIG.debugMap = true;
+																			CONFIG.debugProfiles = true;
+																			CONFIG.debugQuests = true;
+																			CONFIG.debugSaves = true;
+																			CONFIG.debugShips = true;
+																			CONFIG.debugShips_DrawVelocities = true;
+																			CONFIG.debugWriteAllShipData = true;
+																			CONFIG.generalDebugging = true;
+
+																			SCREEN_MANAGER.alerts.Enqueue("all debugging flags enabled");
+																			break;
+																		case "false":
+																			CONFIG.debugAI = false;
+																			CONFIG.debugAI_DrawAim = false;
+																			CONFIG.debugAI_DrawAvoidance = false;
+																			CONFIG.debugAI_DrawNavAreas = false;
+																			CONFIG.debugAI_DrawNavSections = false;
+																			CONFIG.debugAI_DrawPathfinding = false;
+																			CONFIG.debugAnimations = false;
+																			CONFIG.debugArtThread = false;
+																			CONFIG.debugBatchProcessProfToFlt = false;
+																			CONFIG.debugCamera = false;
+																			CONFIG.debugCollisionAvoidance = false;
+																			CONFIG.debugCosm = false;
+																			CONFIG.debugDesign = false;
+																			CONFIG.debugExtensions = false;
+																			CONFIG.debugFactions = false;
+																			CONFIG.debugFlotillas = false;
+																			CONFIG.debugGuns = false;
+																			CONFIG.debugHacking = false;
+																			CONFIG.debugInventory = false;
+																			CONFIG.debugMap = false;
+																			CONFIG.debugProfiles = false;
+																			CONFIG.debugQuests = false;
+																			CONFIG.debugSaves = false;
+																			CONFIG.debugShips = false;
+																			CONFIG.debugShips_DrawVelocities = false;
+																			CONFIG.debugWriteAllShipData = false;
+																			CONFIG.generalDebugging = false;
+
+																			SCREEN_MANAGER.alerts.Enqueue("all debugging flags disabled");
+																			break;
+																		default:
+																			SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																			break;
+																	}
+																}
+																else
+																{
+																	SCREEN_MANAGER.widgetChat.AddMessage("invalid command parameter. type /debug ? for help.", MessageTarget.Whisper);
+																	break;
+																}
+																break;
+															default:
+																SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																break;
+														}
+													}
+													else
+													{
+														SCREEN_MANAGER.widgetChat.AddMessage("invalid command parameter. type /debug ? for help.", MessageTarget.Whisper);
+														break;
 													}
 													break;
 												case "?":
@@ -1218,11 +1301,17 @@ namespace Community_Bug_Fixes
 													SCREEN_MANAGER.widgetChat.AddMessage("> delete hull *name*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> config interior_effects *true/false*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> config all_flags *true/false*", MessageTarget.Whisper);
-												break;
+													break;
 												default:
 													SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
 													break;
 											}
+										}
+										else
+										{
+											SCREEN_MANAGER.widgetChat.AddMessage("invalid command parameter. type /debug ? for help.", MessageTarget.Whisper);
+											break;
+										}
 											break;
 										default:
 											break;
