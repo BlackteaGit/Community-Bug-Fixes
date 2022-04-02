@@ -29,6 +29,206 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		// fixing: After meeting tony, if you exit the game before fixing the ship, ship will disappear on loading.
+		[HarmonyPatch(typeof(WorldActor))]
+		[HarmonyPatch(MethodType.Constructor)]
+		[HarmonyPatch(new Type[] { typeof(Ship) })]
+		public class WorldActor_WorldActor_Ship
+		{
+
+			[HarmonyPrefix]
+			private static bool Prefix(WorldActor __instance, Ship item)
+			{
+				__instance.ownershipHistory = new List<ulong>();
+				__instance.writeFinished = true;
+				__instance.hackingAvailable = 1f;
+				__instance.fadeOutTimer = -10f;
+				__instance.crewOutfitQuality = -1f;
+				if (item.constructionAnim != null)
+				{
+					new Color(0, 0, 0, 0);
+					for (int i = 0; i < item.topD.Length; i++)
+					{
+						if ((item.botD[i].R != 0 || item.botD[i].G != 0 || item.botD[i].B != 0) && !TILEBAG.isShieldTileColor(ref item.botD[i]))
+						{
+							item.topD[i].A = byte.MaxValue;
+						}
+						if (item.botD[i].R != 0 || item.botD[i].G != 0 || item.botD[i].B != 0)
+						{
+							item.dataChangedB = true;
+							item.botD[i].A = byte.MaxValue;
+						}
+					}
+				}
+				item.setData();
+				__instance.speed = 2000f;
+				__instance.fadeOutTimer = item.fadeOutTimer;
+				if (__instance.fadeOutTimer > -5f)
+				{
+					__instance.speed = 0f;
+				}
+				__instance.crewOutfitQuality = -1f;
+				__instance.type = ActorType.ship;
+				__instance.position = item.position;
+				__instance.grid = item.grid;
+				__instance.centerOfMass = item.artOrigin;
+				__instance.rotation = item.rotationAngle;
+				__instance.ownershipHistory = item.ownershipHistory;
+				__instance.dockingActive = (item.dockingActive || item.docked.Count<Ship>() > 0);
+				__instance.data = item.data;
+				__instance.id = item.id;
+				__instance.intval = item.unlockIndex;
+				__instance.hackingAvailable = item.hackingAvailable;
+				__instance.tuning = item.tuning;
+				if (item.docked != null && item.docked.Count > 0)
+				{
+					__instance.dockedShips = new List<DockStatus>();
+					foreach (Ship ship in item.docked)
+					{
+						foreach (DockSpot dockSpot in item.docking)
+						{
+							if (dockSpot.docked != null && dockSpot.docked.parent == ship)
+							{
+								uint pivotTile = dockSpot.pivotTile;
+								uint pivotTile2 = dockSpot.docked.pivotTile;
+								DockStatus item2 = default(DockStatus);
+								item2.partner = ship.id;
+								item2.myTile = pivotTile;
+								item2.theirTile = pivotTile2;
+								__instance.dockedShips.Add(item2);
+								break;
+							}
+						}
+					}
+				}
+				if (item.spawnIndex != -1)
+				{
+					if (item.cosm != null)
+					{
+						if (item.consoles != null && item.consoles.ContainsKey(0) && item.consoles[0].crew != null)
+						{
+							__instance.speed = item.cosm.topSpeed.data;
+						}
+						CosmMetaData data = item.cosm.getData();
+						if (data.significant())
+						{
+							__instance.data = data;
+						}
+						item.cosm.actor = __instance;
+						item.cosm.ship = null;
+						__instance.writeFinished = true;
+						item.cosm.alive = false;
+					}				
+					item.cosm = null;
+				}
+				else
+				{
+					__instance.width = item.Width;
+					__instance.height = item.Height;
+					__instance.top = item.topD;
+					__instance.bot = item.botD;
+					__instance.bump = item.bumpD;
+					__instance.spec = item.specD;
+					__instance.emit = item.emitD;
+					__instance.turrets = item.turrets;
+					if (item.cosm != null)
+					{
+						if (item.consoles != null && item.consoles.ContainsKey(0) && item.consoles[0].crew != null)
+						{
+							__instance.speed = item.cosm.topSpeed.data;
+						}
+						CosmMetaData data = item.cosm.getData();
+						if (data.significant())
+						{
+							__instance.data = data;
+						}
+						item.cosm.actor = __instance;
+						__instance.writeFinished = true;
+						item.cosm.ship = null;
+						item.cosm.alive = false;
+						item.cosm = null;
+					}
+					else
+					{
+						__instance.speed = 0f;
+					}
+				}
+				item.Dispose();
+				if (__instance.data != null && __instance.data.crew != null && __instance.ownershipHistory.Count > 0)
+				{
+					foreach (Crew crew2 in __instance.data.crew)
+					{
+						if (crew2.state != CrewState.dead && crew2.faction == __instance.ownershipHistory.Last<ulong>())
+						{
+							__instance.dominantTeam = crew2.team;
+						}
+					}
+				}
+				return false;
+			}
+		}
+
+
+
+
+		[HarmonyPatch(typeof(HiggsHomecomingQuest), "test")]
+		public class HiggsHomecomingQuest_test
+		{
+
+			[HarmonyPrefix]
+			private static bool Prefix(HiggsHomecomingQuest __instance, float elapsed, ref float ___timer, ref bool __result)
+			{
+				if (__instance.stage == 0)
+				{
+					___timer += elapsed;
+					if (___timer > 3f)
+					{
+						if (PLAYER.currentSession.valuesOfInterest != null)
+						{
+							for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
+							{
+								if (PLAYER.currentSession.valuesOfInterest[i] == "higgs_ship_0")
+								{
+									Ship ship = SHIPBAG.makeShip(74, 0);
+									ship.dontAbstract();                                                                        
+									InventoryItem inventoryItem = new InventoryItem(InventoryItemType.grey_goo);
+									inventoryItem.stackSize = 12U;
+									ship.cosm.threadDumpCargo(inventoryItem);
+									ship.position = PLAYER.currentSession.pointsOfInterest[i];
+									ship.grid = PLAYER.currentSession.grid;
+									ship.rotationAngle = RANDOM.randomRotation();
+									ship.setID(PLAYER.currentWorld.getUID());
+									ship.setFaction(CONFIG.playerFaction);
+									PLAYER.currentWorld.requestBackup(ship);
+									PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
+									ship.toggleDocking(true);
+									PLAYER.addGreenArrow(__instance.name, PLAYER.currentSession.grid, ship.position, __instance);
+									break;
+								}
+							}
+						}
+						___timer = 0f;
+						__instance.stage += 1U;
+					}
+					__result = false;
+					return false;
+					
+				}
+				if (__instance.stage == 3U && !PLAYER.greenArrows.ContainsKey(__instance.name))
+				{
+					for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
+					{
+						if (PLAYER.currentSession.valuesOfInterest[i] == "higgs_ship_0")
+						{
+							PLAYER.addGreenArrow(__instance.name, PLAYER.currentSession.grid, PLAYER.currentSession.pointsOfInterest[i], __instance);
+							break;
+						}
+					}
+				}
+				return true;
+			}
+		}
+
 
 		//fixing: missing icons for grey goo factories on world map.	
 		[HarmonyPatch(typeof(WorldRev3), "applySessionData")]
@@ -69,27 +269,10 @@ namespace Community_Bug_Fixes
 								};
 								__instance.icons[node.grid].Add(poiicon);
 
-						}
-							/*
-							else if(!__instance.icons.ContainsKey(node.grid))
-							{
-
-								var poiicon = new POEIcon
-								{
-									artSource = new Rectangle(0, 0, 64, 64),
-									flag = "econ_goo_factory_1",
-									globallyVisible = false,
-									position = node.position,
-									seen = false,
-									sensorVisible = true
-								};
-								__instance.icons.Add(node.grid, new List<POEIcon>{poiicon});
 							}
-							*/
 						}
 					}
 			}
-
 		}
 
 
@@ -295,7 +478,7 @@ namespace Community_Bug_Fixes
 					{
 						activesession = true;
 						if (battleSession.grid != CONFIG.spHomeGrid && s.GetType() == typeof(Ship) && s.faction == 2UL && (PLAYER.currentShip == null || PLAYER.currentShip != null && PLAYER.currentShip.id != s.id) 
-						&& s.cosm?.crew?.Values.First()?.team != null && s.cosm.crew.Values.First().team.goalType == ConsoleGoalType.warp_jump && s.cosm.crew.Values.First().team.destination == PLAYER.currentGame.position)
+						&& s.cosm?.crew != null && s.cosm.crew.Count > 0  && s.cosm.crew.Values.First()?.team != null && s.cosm.crew.Values.First().team.goalType == ConsoleGoalType.warp_jump && s.cosm.crew.Values.First().team.destination == PLAYER.currentGame.position)
 						{
 							if ( battleSession != PLAYER.currentSession)
 							{
@@ -315,7 +498,7 @@ namespace Community_Bug_Fixes
 				if(!activesession)
 				{
 					if (s.grid != CONFIG.spHomeGrid && s.GetType() == typeof(Ship) && s.faction == 2UL && (PLAYER.currentShip == null || PLAYER.currentShip != null && PLAYER.currentShip.id != s.id)
-						&& s.cosm?.crew?.Values.First()?.team != null && s.cosm.crew.Values.First().team.goalType == ConsoleGoalType.warp_jump && s.cosm.crew.Values.First().team.destination == PLAYER.currentGame.position)
+						&& s.cosm?.crew != null && s.cosm.crew.Count > 0 && s.cosm.crew.Values.First()?.team != null && s.cosm.crew.Values.First().team.goalType == ConsoleGoalType.warp_jump && s.cosm.crew.Values.First().team.destination == PLAYER.currentGame.position)
 					{
 						if (PLAYER.currentSession != null && s.grid != PLAYER.currentSession.grid)
 						{
@@ -1098,6 +1281,50 @@ namespace Community_Bug_Fixes
 																	}
 																}
 																break;
+															case "higgs":													
+																if (PLAYER.currentSession.valuesOfInterest != null)
+																{
+																	for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
+																	{
+																		if (PLAYER.currentSession.valuesOfInterest[i] == "higgs_ship_0")
+																		{
+
+																			foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
+																			{
+																				if (triggerEvent.GetType() == typeof(HiggsHomecomingQuest))
+																				{
+																					if (triggerEvent.stage == 3U || triggerEvent.stage == 4U)
+																					{
+																						Ship ship = SHIPBAG.makeShip(74, 0);
+																						ship.dontAbstract();
+																						InventoryItem inventoryItem = new InventoryItem(InventoryItemType.grey_goo);
+																						inventoryItem.stackSize = 12U;
+																						ship.cosm.threadDumpCargo(inventoryItem);
+																						ship.position = PLAYER.currentSession.pointsOfInterest[i];
+																						ship.grid = PLAYER.currentSession.grid;
+																						ship.rotationAngle = RANDOM.randomRotation();
+																						ship.setID(PLAYER.currentWorld.getUID());
+																						ship.setFaction(CONFIG.playerFaction);
+																						PLAYER.currentWorld.requestBackup(ship);
+																						PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
+																						SCREEN_MANAGER.widgetChat.AddMessage("higgs ship spawned", MessageTarget.Command);
+																						ship.toggleDocking(true);
+																						if(!PLAYER.greenArrows.ContainsKey(triggerEvent.name))
+																						PLAYER.addGreenArrow(triggerEvent.name, PLAYER.currentSession.grid, ship.position, triggerEvent);
+																					}
+																					else
+																					{
+																						SCREEN_MANAGER.widgetChat.AddMessage("invalid quest flags", MessageTarget.Command);
+																					}
+																					break;
+																				}
+																				
+																			}
+																			break;
+																		}
+																	}
+																}
+																break;
 															default:
 																SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
 																break;
@@ -1327,6 +1554,7 @@ namespace Community_Bug_Fixes
 												case "help":
 													SCREEN_MANAGER.widgetChat.AddMessage("debug commands:", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> spawn budd", MessageTarget.Whisper);
+													SCREEN_MANAGER.widgetChat.AddMessage("> spawn higgs", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> spawn small_pirate *amount*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> spawn big_pirate *amount*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> unlock hulls", MessageTarget.Whisper);
