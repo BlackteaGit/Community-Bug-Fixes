@@ -15,7 +15,6 @@ using Module = CoOpSpRpG.Module;
 using System.Collections.Concurrent;
 using Console = CoOpSpRpG.Console;
 using System.Linq;
-using System.Threading.Tasks;
 using WaywardExtensions;
 
 namespace Community_Bug_Fixes
@@ -28,147 +27,6 @@ namespace Community_Bug_Fixes
 			Harmony harmony = new Harmony("blacktea.Community_Bug_Fixes");
 			harmony.PatchAll();
 		}
-
-		// fixing: After meeting tony, if you exit the game before fixing the ship, ship will disappear on loading.
-		[HarmonyPatch(typeof(WorldActor))]
-		[HarmonyPatch(MethodType.Constructor)]
-		[HarmonyPatch(new Type[] { typeof(Ship) })]
-		public class WorldActor_WorldActor_Ship
-		{
-
-			[HarmonyPrefix]
-			private static bool Prefix(WorldActor __instance, Ship item)
-			{
-				__instance.ownershipHistory = new List<ulong>();
-				__instance.writeFinished = true;
-				__instance.hackingAvailable = 1f;
-				__instance.fadeOutTimer = -10f;
-				__instance.crewOutfitQuality = -1f;
-				if (item.constructionAnim != null)
-				{
-					new Color(0, 0, 0, 0);
-					for (int i = 0; i < item.topD.Length; i++)
-					{
-						if ((item.botD[i].R != 0 || item.botD[i].G != 0 || item.botD[i].B != 0) && !TILEBAG.isShieldTileColor(ref item.botD[i]))
-						{
-							item.topD[i].A = byte.MaxValue;
-						}
-						if (item.botD[i].R != 0 || item.botD[i].G != 0 || item.botD[i].B != 0)
-						{
-							item.dataChangedB = true;
-							item.botD[i].A = byte.MaxValue;
-						}
-					}
-				}
-				item.setData();
-				__instance.speed = 2000f;
-				__instance.fadeOutTimer = item.fadeOutTimer;
-				if (__instance.fadeOutTimer > -5f)
-				{
-					__instance.speed = 0f;
-				}
-				__instance.crewOutfitQuality = -1f;
-				__instance.type = ActorType.ship;
-				__instance.position = item.position;
-				__instance.grid = item.grid;
-				__instance.centerOfMass = item.artOrigin;
-				__instance.rotation = item.rotationAngle;
-				__instance.ownershipHistory = item.ownershipHistory;
-				__instance.dockingActive = (item.dockingActive || item.docked.Count<Ship>() > 0);
-				__instance.data = item.data;
-				__instance.id = item.id;
-				__instance.intval = item.unlockIndex;
-				__instance.hackingAvailable = item.hackingAvailable;
-				__instance.tuning = item.tuning;
-				if (item.docked != null && item.docked.Count > 0)
-				{
-					__instance.dockedShips = new List<DockStatus>();
-					foreach (Ship ship in item.docked)
-					{
-						foreach (DockSpot dockSpot in item.docking)
-						{
-							if (dockSpot.docked != null && dockSpot.docked.parent == ship)
-							{
-								uint pivotTile = dockSpot.pivotTile;
-								uint pivotTile2 = dockSpot.docked.pivotTile;
-								DockStatus item2 = default(DockStatus);
-								item2.partner = ship.id;
-								item2.myTile = pivotTile;
-								item2.theirTile = pivotTile2;
-								__instance.dockedShips.Add(item2);
-								break;
-							}
-						}
-					}
-				}
-				if (item.spawnIndex != -1)
-				{
-					if (item.cosm != null)
-					{
-						if (item.consoles != null && item.consoles.ContainsKey(0) && item.consoles[0].crew != null)
-						{
-							__instance.speed = item.cosm.topSpeed.data;
-						}
-						CosmMetaData data = item.cosm.getData();
-						if (data.significant())
-						{
-							__instance.data = data;
-						}
-						item.cosm.actor = __instance;
-						item.cosm.ship = null;
-						__instance.writeFinished = true;
-						item.cosm.alive = false;
-					}				
-					item.cosm = null;
-				}
-				else
-				{
-					__instance.width = item.Width;
-					__instance.height = item.Height;
-					__instance.top = item.topD;
-					__instance.bot = item.botD;
-					__instance.bump = item.bumpD;
-					__instance.spec = item.specD;
-					__instance.emit = item.emitD;
-					__instance.turrets = item.turrets;
-					if (item.cosm != null)
-					{
-						if (item.consoles != null && item.consoles.ContainsKey(0) && item.consoles[0].crew != null)
-						{
-							__instance.speed = item.cosm.topSpeed.data;
-						}
-						CosmMetaData data = item.cosm.getData();
-						if (data.significant())
-						{
-							__instance.data = data;
-						}
-						item.cosm.actor = __instance;
-						__instance.writeFinished = true;
-						item.cosm.ship = null;
-						item.cosm.alive = false;
-						item.cosm = null;
-					}
-					else
-					{
-						__instance.speed = 0f;
-					}
-				}
-				item.Dispose();
-				if (__instance.data != null && __instance.data.crew != null && __instance.ownershipHistory.Count > 0)
-				{
-					foreach (Crew crew2 in __instance.data.crew)
-					{
-						if (crew2.state != CrewState.dead && crew2.faction == __instance.ownershipHistory.Last<ulong>())
-						{
-							__instance.dominantTeam = crew2.team;
-						}
-					}
-				}
-				return false;
-			}
-		}
-
-
 
 
 		[HarmonyPatch(typeof(HiggsHomecomingQuest), "test")]
@@ -230,239 +88,6 @@ namespace Community_Bug_Fixes
 		}
 
 
-		//fixing: missing icons for grey goo factories on world map.	
-		[HarmonyPatch(typeof(WorldRev3), "applySessionData")]
-		public class WorldRev3_applySessionData
-		{
-			[HarmonyPrefix]
-			private static void Prefix(WorldRev3 __instance)
-			{
-					foreach (var node in __instance.economy.nodes)
-					{
-						if (node.type == EconomicStationType.goo_factory)
-						{
-							if (__instance.icons.ContainsKey(node.grid) && !__instance.icons[node.grid].Exists(icon => icon.flag == "econ_goo_factory_1" && icon.position == node.position))
-							{
-								var poiicon = new POEIcon
-								{
-									artSource = new Rectangle(0, 0, 64, 64),
-									flag = "econ_goo_factory_1",
-									globallyVisible = false,
-									position = node.position,
-									seen = false,
-									sensorVisible = true
-								};
-								__instance.icons[node.grid].Add(poiicon);
-							}
-							else if(__instance.icons.ContainsKey(node.grid) && __instance.icons[node.grid].Exists(icon => icon.flag == "econ_goo_factory_1" && icon.position == node.position && icon.artSource == Rectangle.Empty))
-							{
-								var result = __instance.icons[node.grid].Find(icon => icon.flag == "econ_goo_factory_1" && icon.position == node.position && icon.artSource == Rectangle.Empty);
-								__instance.icons[node.grid].Remove(result);
-								var poiicon = new POEIcon
-								{
-									artSource = new Rectangle(0, 0, 64, 64),
-									flag = result.flag,
-									globallyVisible = result.globallyVisible,
-									position = result.position,
-									seen = result.seen,
-									sensorVisible = result.sensorVisible
-								};
-								__instance.icons[node.grid].Add(poiicon);
-
-							}
-						}
-					}
-			}
-		}
-
-
-		//fixing: adding crew to AI ships which spawn with less crew then consoles.
-
-		[HarmonyPatch(typeof(WorldActor), "getShip", new Type[] { typeof(byte) })]
-		public class WorldActor_getShip
-		{
-			[HarmonyPostfix]
-			private static void Postfix(ref Ship __result)
-			{
-				if (__result != null && __result.faction != 2UL && __result.cosm?.crew != null && __result.cosm.crew.Count > 0)
-				{
-					if (__result.cosm.crew.Count <= __result.cosm.consoles.Count)
-					{
-						int crewtoadd = __result.cosm.consoles.Count - __result.cosm.crew.Count;
-						for (int i = 0; i < crewtoadd; i++)
-						{
-							__result.cosm.addOneCrew();
-						}					
-					}
-				}
-			}
-		}
-
-		//qol: ally crew will no longer assume control of the ship if Player orders the crew away from consoles and puts them on hold before leaving the ship.
-
-		[HarmonyPatch(typeof(CrewManager), "checkConsoles")]
-		public class CrewManager_checkConsoles
-		{
-			[HarmonyPrefix]
-			private static bool Prefix(CrewManager __instance)
-			{
-				bool flag = true;
-				if (__instance.currentCosm.ship != null && __instance.currentCosm.ship.id == PLAYER.currentTeam.ownedShip)
-				{
-					flag = false;
-				}
-				else
-				{
-					using (IEnumerator<Crew> enumerator = __instance.currentCosm.crew.Values.GetEnumerator())
-					{
-						while (enumerator.MoveNext())
-						{
-							if (enumerator.Current.isPlayer)
-							{
-								flag = false;
-							}
-						}
-					}
-				}
-				if (flag)
-				{
-					foreach (ConsoleAccess consoleAccess in __instance.currentCosm.consoles)
-					{
-						if (consoleAccess.console != null && consoleAccess.console.isFree())
-						{
-							bool flag2 = false;
-							foreach (byte key in __instance.currentCosm.crew.Keys)
-							{
-								if (flag2)
-								{
-									break;
-								}
-								if (__instance.currentCosm.crew[key].state == CrewState.idle && !__instance.currentCosm.crew[key].isPlayer && (__instance.currentCosm.crew[key].faction != CONFIG.playerFaction || PLAYER.currentTeam.orderid == 0))
-								{
-									ModTile[] tiles = consoleAccess.tiles;
-									for (int i = 0; i < tiles.Length; i++)
-									{
-										if (!tiles[i].blocking)
-										{
-											__instance.currentCosm.crew[key].setGoal(consoleAccess.tiles[0]);
-											flag2 = true;
-											break;
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-				return false;
-			}
-		}
-		
-
-		//fixing: crash in logistics screen while assigning turrets if your crew is on that ship.
-		
-		[HarmonyPatch(typeof(ShipAIManager), "stepAI")]
-		public class ShipAIManager_stepAI
-		{
-			[HarmonyPrefix]
-			private static bool Prefix(float elapsed, ShipAIManager __instance)
-			{
-				foreach (Ship ship in __instance.session.allShips.Values)
-				{
-					if (ship.aiControlled && ship.cosm != null)
-					{
-						if (ship.cosm.brain == null)
-						{
-							continue;
-						}
-						using (Dictionary<byte, Console>.ValueCollection.Enumerator enumerator2 = ship.consoles.Values.GetEnumerator())
-						{
-							while (enumerator2.MoveNext())
-							{
-								Console console = enumerator2.Current;
-								if (!ship.aiConThoughts.ContainsKey((int)console.group))
-								{
-									ship.aiConThoughts[(int)console.group] = new ConsoleThought(ship.cosm.brain, ship);
-								}
-								if (console.group == 0)
-								{
-									if (CONFIG.debugAI)
-									{
-										ship.aiConThoughts[(int)console.group].navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
-										continue;
-									}
-									try
-									{
-										ship.aiConThoughts[(int)console.group].navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
-										continue;
-									}
-									catch
-									{
-										continue;
-									}
-								}
-								if (CONFIG.debugAI)
-								{
-									ship.aiConThoughts[(int)console.group].gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
-								}
-								else
-								{
-									try
-									{
-										ship.aiConThoughts[(int)console.group].gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
-									}
-									catch
-									{
-									}
-								}
-							}
-							continue;
-						}
-					}
-					foreach (Console console2 in ship.consoles.Values)
-					{
-						if (ship.cosm != null && console2.crew != null && !console2.crew.isPlayer && console2.crew.conThoughts != null && console2.crew.state == CrewState.operating)
-						{
-							if (console2.group == 0)
-							{
-								if (CONFIG.debugAI)
-								{
-									console2.crew.conThoughts.navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
-									continue;
-								}
-								try
-								{
-									console2.crew.conThoughts.navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
-									continue;
-								}
-								catch
-								{
-									console2.crew = null;
-									continue;
-								}
-							}
-							if (CONFIG.debugAI)
-							{
-								console2.crew.conThoughts.gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
-							}
-							else
-							{
-								try
-								{
-									console2.crew.conThoughts.gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
-								}
-								catch
-								{
-									console2.crew = null;
-								}
-							}
-						}
-					}
-				}
-				return false;
-			}
-		}
-	
 
 		//QoL: you can sent ally ships to the homebase with travel/higgs drive.		
 		[HarmonyPatch(typeof(WorldRev3), "globalPlaceShip")]
@@ -522,7 +147,7 @@ namespace Community_Bug_Fixes
 			private static void Postfix(DialogueTree lobby, BattleSession session, Crew ___representative, Ship ___targetShip)
 			{
 				DialogueTree dialogueTree = new DialogueTree();
-				lobby.addOption("Fly to the homestation.", dialogueTree);
+				lobby.addOption("Use the travel drive and go to the base.", dialogueTree);
 				dialogueTree.text = "Aye Aye Capt'n, going home as fast as I can!";
 				dialogueTree.addOption("...", lobby);
 				dialogueTree.action = delegate ()
@@ -583,379 +208,7 @@ namespace Community_Bug_Fixes
 		}
 
 
-		//fixing: portraits of Bard
-		[HarmonyPatch(typeof(BardAgent))]
-		[HarmonyPatch(MethodType.Constructor)]
-		[HarmonyPatch(new Type[] { })]
-		public class BardAgent_BardAgent
-		{
-			[HarmonyPostfix]
-			private static void Postfix(BardAgent __instance)
-			{
-				__instance.portraitSmall = "Bard";
-				__instance.portraitLarge = "BardL";
-				__instance.portraitTiny = "BardT";
-			}
-		}
 
-		//fixing: portraits of Bard
-		[HarmonyPatch(typeof(BardAgent))]
-		[HarmonyPatch(MethodType.Constructor)]
-		[HarmonyPatch(new Type[] { typeof(BinaryReader) })]
-		public class BardAgent_BardAgentBinaryReader
-		{
-			[HarmonyPostfix]
-			private static void Postfix(BardAgent __instance)
-			{
-				__instance.portraitSmall = "Bard";
-				__instance.portraitLarge = "BardL";
-				__instance.portraitTiny = "BardT";
-			}
-		}
-
-		//fixing: assigned turrets tool tips vanishing in logistics screen
-		[HarmonyPatch(typeof(LogisticsScreenRev3), "Update")]
-		public class LogisticsScreenRev3_Update
-		{
-			[HarmonyPrefix]
-			private static void Prefix(ref uint ___drawMode, LogisticsScreenRev3 __instance, float elapsed)
-			{				
-				if (___drawMode == 0U)
-				{
-					if (Game1.instance.IsActive)
-					{
-						if (SCREEN_MANAGER.dialogue == null)
-						{
-								___drawMode = 20U;
-								if (SCREEN_MANAGER.popupOverlay != null)
-								{
-									//this.openInventory();
-									BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-									typeof(LogisticsScreenRev3).GetMethod("openInventory", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
-								}
-								else if (PROCESS_REGISTER.transition == null)
-								{
-									__instance.updateInput(elapsed);
-								}
-							
-						}				
-					}				
-				}
-			}
-
-			[HarmonyPostfix]
-			private static void Postfix(ref uint ___drawMode)
-			{
-				if (___drawMode == 20U)
-				{
-					___drawMode = 0U;
-				}
-
-			}
-
-		}
-
-
-
-
-		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
-		
-		[HarmonyPatch(typeof(LatticeRepairEffect), "repairOne")]
-		public class LatticeRepairEffect_repairOne
-		{
-			
-			private static bool canRepair(Ship ship, int ___indexRoller)
-			{
-				if (ship.cosm == null)
-					return false;
-				for (int i = 0; i < 8; i++)
-				{
-					if (ship.cosm.tiles[___indexRoller].neighbors[i] != null && ship.cosm.tiles[___indexRoller].neighbors[i].A == byte.MaxValue && TILEBAG.isAnyArmorTileColor(ref ship.botD[Array.IndexOf(ship.cosm.tiles, ship.cosm.tiles[___indexRoller].neighbors[i])]))
-					{
-						return true;
-					}
-					else if (ship.cosm.tiles[___indexRoller].neighbors[i] != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner.hitpoints == ship.cosm.tiles[___indexRoller].neighbors[i].owner.hitpointsMax)
-					{
-						if (ship.cosm.tiles[___indexRoller].neighbors[i].owner.IsRooted(ship))
-						{
-							for (int k = 0; k < ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles.Length; k++)
-							{
-								for (int j = 0; j < 8; j++)
-								{
-									if (ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j] != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner != null
-									&& ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.hitpoints == ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.hitpointsMax &&
-									ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.IsRooted(ship))
-									{
-										return true;
-									}
-								}
-							}
-						}
-					}
-				}
-				return false;
-			}
-
-			[HarmonyPrefix]
-			private static bool Prefix(Ship ship, ref int ___indexRoller, LatticeRepairEffect __instance)
-			{
-				int num = ship.botD.Length;
-				int num2 = num / 8;
-				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-				___indexRoller += RANDOM.Next(ship.Width);
-				if (___indexRoller >= num)
-				{
-					___indexRoller = 0;
-				}
-				int num3 = 0;
-				var args = new object[] { ship };
-				while (num3 < num2 && (bool)typeof(LatticeRepairEffect).GetMethod("invalidIndex", flags, null, new Type[] { typeof(Ship) }, null).Invoke(__instance, args))
-				{
-					___indexRoller += 2;
-					num3 += 2;
-					if (___indexRoller >= num)
-					{
-						___indexRoller = 0;
-					}
-				}
-				if (num3 < num2 && canRepair(ship,___indexRoller))
-				{
-					Color color = ship.botD[___indexRoller];
-					SpriteUpdate spriteUpdate = SpriteUpdate.newPooled();
-					spriteUpdate.add(___indexRoller, false, false, (byte)(byte.MaxValue - color.A));
-					ship.botD[___indexRoller].A = byte.MaxValue;
-					ship.dataChangedB = true;
-					ship.publisher.publishClient(spriteUpdate);
-				}
-				return false;
-			}
-		}
-	    
-		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
-		
-		[HarmonyPatch(typeof(NanoAura), "repairBot")]
-		public class NanoAura_repairBot
-		{
-
-			private static bool invalidIndex(MicroCosm cosm, ModTile tile)
-			{
-				int indexRoller = Array.IndexOf(cosm.tiles, tile);
-				if (indexRoller >= cosm.ship.Width && cosm.ship.botD[indexRoller - cosm.ship.Width].A > 0)
-				{
-					return false;
-				}
-				if (indexRoller < cosm.ship.botD.Length - 1 && cosm.ship.botD[indexRoller + 1].A > 0)
-				{
-					return false;
-				}
-				if (indexRoller < cosm.ship.botD.Length - cosm.ship.Width - 1 && cosm.ship.botD[indexRoller + cosm.ship.Width].A > 0)
-				{
-					return false;
-				}
-				if (indexRoller > 1 && cosm.ship.botD[indexRoller - 1].A > 0)
-				{
-					return false;
-				}
-			
-				return true;
-			}
-
-
-			[HarmonyPrefix]
-			private static void Prefix(Crew source)
-			{
-
-				int count = source.currentCosm.modules.Count;
-				int number = RANDOM.Next(count);
-				int number2 = 0;
-				SpriteUpdate spriteUpdate = null;
-				while (number2 < count) //&& source.currentCosm.modules[number].hitpoints == source.currentCosm.modules[number].hitpointsMax)
-				{
-					
-					for (int i = 0; i < source.currentCosm.modules[number].tiles.Length; i++ )
-					{
-						for(int j = 0; j < 8 ; j++)
-						{
-							if(source.currentCosm.modules[number].hitpoints == source.currentCosm.modules[number].hitpointsMax && source.currentCosm.modules[number].tiles[i].neighbors[j] != null && source.currentCosm.modules[number].tiles[i].neighbors[j].A == 0 && source.currentCosm.modules[number].tiles[i].neighbors[j].repairable)
-							{
-
-								if (spriteUpdate == null)
-								{
-									spriteUpdate = SpriteUpdate.newPooled();
-								}
-								spriteUpdate.add(source.currentCosm.modules[number].tiles[i].neighbors[j].X, false, false, 1);
-								ModTile modTile = source.currentCosm.modules[number].tiles[i].neighbors[j];
-								modTile.A += 1;
-								
-							}
-							if(source.currentCosm.modules[number].hitpoints != source.currentCosm.modules[number].hitpointsMax && source.currentCosm.modules[number].tiles[i].A == 0						
-							&& source.currentCosm.modules[number].tiles[i].neighbors[j] != null && source.currentCosm.modules[number].tiles[i].neighbors[j].hasNeighbors())
-							{
-								if (spriteUpdate == null)
-								{
-									spriteUpdate = SpriteUpdate.newPooled();
-								}
-								spriteUpdate.add(source.currentCosm.modules[number].tiles[i].X, false, false, 1);
-								ModTile modTile = source.currentCosm.modules[number].tiles[i];
-								modTile.A += 1;
-								source.currentCosm.publisher.publishCosm(spriteUpdate);
-								return;
-							}
-                        }
-					}
-					number2++;
-					number++;
-					if (number >= count)
-					{
-						number = 0;
-					}				
-				}
-				if (spriteUpdate != null)
-				{
-					source.currentCosm.publisher.publishCosm(spriteUpdate);
-				}
-
-			}
-
-		}
-		
-
-		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
-		[HarmonyPatch(typeof(Module), "repairWhole")]
-		public class Module_repairWhole
-		{
-			[HarmonyPrefix]
-			private static bool Prefix(uint amt, ref bool __result, Module __instance)
-			{
-				SpriteUpdate spriteUpdate = null;
-				uint num = 0U;
-				int num2 = RANDOM.Next(__instance.tiles.Length);
-				bool flag = false;
-				int num3 = 0;
-				while (!flag && num3 < __instance.tiles.Length)
-				{
-					num2++;
-					num3++;
-					if (num2 >= __instance.tiles.Length)
-					{
-						num2 = 0;
-					}
-					if (__instance.tiles[num2].A < 255)
-					{
-						if (__instance.tiles[num2].neighbors[0] != null && __instance.tiles[num2].neighbors[0].A > 0)
-						{
-							flag = true;
-							break;
-						}
-						if (__instance.tiles[num2].neighbors[1] != null && __instance.tiles[num2].neighbors[1].A > 0)
-						{
-							flag = true;
-							break;
-						}
-						if (__instance.tiles[num2].neighbors[2] != null && __instance.tiles[num2].neighbors[2].A > 0)
-						{
-							flag = true;
-							break;
-						}
-						if (__instance.tiles[num2].neighbors[3] != null && __instance.tiles[num2].neighbors[3].A > 0)
-						{
-							flag = true;
-							break;
-						}
-						if (__instance.tiles[num2].neighbors[4] != null && __instance.tiles[num2].neighbors[4].A > 0)
-						{
-							flag = true;
-							break;
-						}
-						if (__instance.tiles[num2].neighbors[5] != null && __instance.tiles[num2].neighbors[5].A > 0)
-						{
-							flag = true;
-							break;
-						}
-						if (__instance.tiles[num2].neighbors[6] != null && __instance.tiles[num2].neighbors[6].A > 0)
-						{
-							flag = true;
-							break;
-						}
-						if (__instance.tiles[num2].neighbors[7] != null && __instance.tiles[num2].neighbors[7].A > 0)
-						{
-							flag = true;
-							break;
-						}
-					}
-				}
-				if (!flag && !__instance.IsRooted(__instance.cosm.ship))
-				{
-					__result = false;
-					return false;
-				}
-				
-				int num4 = __instance.tiles.Length;
-				while (num < amt && num4 > 0)
-				{
-					uint num5 = amt - num;
-					uint num6 = (uint)(byte.MaxValue - __instance.tiles[num2].A);
-					if (num6 > 0U)
-					{
-						if (spriteUpdate == null)
-						{
-							spriteUpdate = SpriteUpdate.newPooled();
-						}
-						if (num6 >= num5)
-						{
-							ModTile modTile = __instance.tiles[num2];
-							modTile.A += (byte)num5;
-							spriteUpdate.add(__instance.tiles[num2].X, false, false, (byte)num5);
-							num = amt;
-						}
-						else if (num6 < num5)
-						{
-							spriteUpdate.add(__instance.tiles[num2].X, false, false, (byte)num6);
-							__instance.tiles[num2].A = byte.MaxValue;
-							num += num6;
-						}
-					}
-					num4--;
-					num2++;
-					if (num2 >= __instance.tiles.Length)
-					{
-						num2 = 0;
-					}
-				}
-				if (spriteUpdate != null)
-				{
-					__instance.cosm.publisher.publishCosm(spriteUpdate);
-				}
-				__result = num < amt;
-				return false;
-			}
-
-		}
-
-		//fixing: some quests not removing aggro of quest ships properly.
-		[HarmonyPatch(typeof(NonPlayerShip), "removeThreat")]
-		public class NonPlayerShip_removeThreat
-		{
-			[HarmonyPostfix]
-			private static void Postfix(ulong threatFaction, Ship ___ship)
-			{
-				if (___ship != null)
-				{
-					if (___ship.cosm?.crew != null)
-					{
-						foreach (var crew in ___ship.cosm.crew.Values)
-						{
-							if (crew.faction == ___ship.faction && crew.team?.threats != null)
-							{ 
-								crew.team.threats.Remove(threatFaction);
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
-		
 		//fixing: End the siege quest not counting killed enemies properly.
 		[HarmonyPatch(typeof(SiegeQuest))]
 		[HarmonyPatch(MethodType.Constructor)]
@@ -981,73 +234,7 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
-		//fixing: End the siege quest not counting killed enemies properly.
-		[HarmonyPatch(typeof(SiegeQuest), "waitForAllDeadStage")]
-		public class SiegeQuest_waitForAllDeadStage
-		{
-			[HarmonyPrefix]
-			private static bool Prefix(SiegeQuest __instance, CallFunctionStage stage, float elapsed, ref bool __result, ref int ___killCounter, List<ulong> ___enemies, TipStatSmall ___tipStat, ref float ___timer)
-			{
-				int num = ___killCounter;
-				___timer += elapsed;
-				if (___timer > 30f)
-				{
-					___timer = 0f;
-					foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
-					{
-						if (factionControllerRev.GetType() == typeof(FriendlyPirateFaction))
-						{
-							FriendlyPirateFaction friendlyPirateFaction = factionControllerRev as FriendlyPirateFaction;
-							if (PLAYER.currentSession.grid == friendlyPirateFaction.homeGrid)
-							{
-								___killCounter = ___enemies.Count;
-								/*
-								foreach (ulong item in PLAYER.currentSession.allShips.Keys)
-								{
-									if (___enemies.Contains(item))
-									{
-										___killCounter--;
-									}
-								}
-								*/
-								foreach (ulong enemy in ___enemies)
-								{ 
-									if (PLAYER.currentSession.allShips.Keys.Contains(enemy) && PLAYER.currentSession.allShips[enemy].cosm?.crew != null && !PLAYER.currentSession.allShips[enemy].cosm.crew.IsEmpty)
-									{
-										___killCounter--;
-									}								 
-								}
-							}
-						}
-					}
-				}
-				if (num != ___killCounter)
-				{
-					___tipStat.value = ___killCounter.ToString() + " / " + ___enemies.Count.ToString();
-				}
-				stage.nextStage = stage;
-				if (___killCounter >= ___enemies.Count)
-				{
-					stage.nextStage = null;
-					foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
-					{
-						if (factionControllerRev.GetType() == typeof(FriendlyPirateFaction))
-						{
-							FriendlyPirateFaction friendlyPirateFaction = factionControllerRev as FriendlyPirateFaction;
-							if (PLAYER.currentSession.grid == friendlyPirateFaction.homeGrid)
-							{
-								friendlyPirateFaction.calm();
-							}
-						}
-					}
-				}
-				__result = false;
-				return false; //instruction for harmony to supress executing the original method
-			}
-		}
-
-
-
+		
 		//adding some debug commands.
 		[HarmonyPatch(typeof(WidgetChat), "CreateMessage")]
 		public class WidgetChat_CreateMessage
@@ -1613,47 +800,6 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-		//fixing: Unable to recruit Vaal after conversation with her. (fixing already bugged saves)
-		[HarmonyPatch(typeof(AgentTracker), "getBarAgents")]
-		public class AgentTracker_getBarAgents
-		{
-
-			[HarmonyPrefix]
-			private static void Prefix(AgentTracker __instance, ref List<BarAgentDrawer> __result, ulong stationID, Point grid)
-			{
-				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-				foreach (NPCAgent npcagent in __instance.allAgents)
-				{
-					if (npcagent.name == "Vaal")
-					{
-						var field = typeof(ValAgent).GetField("adopted", flags);
-						var adopted = (bool)field.GetValue(npcagent);
-						if (!__instance.unlockedFriends.Contains(npcagent) && adopted == true)
-						{
-							npcagent.canJoin = true;
-							__instance.adoptAgent(npcagent.name);
-							bool found = false;
-							if (PLAYER.currentGame != null && PLAYER.currentGame.activeQuests != null)
-							{
-								foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
-								{
-									if (triggerEvent.name == "find_crew")
-									{
-										triggerEvent.stage += 1U;
-										found = true;
-									}
-								}
-							}
-							if (CHARACTER_DATA.maxCrew == 0)
-							{
-								PLAYER.currentGame.activeQuests.Add(new CloningReminder(found));
-							}
-						}
-					}
-				}
-			}
-		}
-
 		//fixing: using logistics room on a ship allows unintended use of logistics commands on the command source ship.
 		//qol: scraping a ship at your homebase will now return 100% of resources if the ship wasn build by the player instead of captured from another faction.
 		[HarmonyPatch(typeof(LogisticsScreenRev3), "doRightClick")]
@@ -1663,7 +809,10 @@ namespace Community_Bug_Fixes
 			[HarmonyPrefix]
 			private static void Prefix(LogisticsScreenRev3 __instance, ref string opt, Ship ___selected)
 			{
-				
+
+				if (___selected == null || PLAYER.currentShip == null || PLAYER.currentGame == null)
+					return;
+
 				if (opt != "" && ___selected.id == PLAYER.currentShip.id && ___selected.id != PLAYER.currentGame.homeBaseId)
 				{
 					SCREEN_MANAGER.widgetChat.AddMessage("Invalid target. Command target ship has to be distinct from command source ship.", MessageTarget.Ship);
@@ -1845,6 +994,1134 @@ namespace Community_Bug_Fixes
 			}
 		}
 
+		
+
+		//qol: player avatar will continue to run forward instead of turning back until a movement key is released after passing through airlock to another ship if both ships have their airlocks on the same axis (facing the same direction).
+		[HarmonyPatch(typeof(ShipNavigationRev3), "updateInput")]
+		public class ShipNavigationRev3_updateInput
+		{
+			[HarmonyPrefix]
+			private static void Prefix(ref KeyboardState __state, KeyboardState ___oldState)
+			{
+				__state = ___oldState;
+			}
+
+			[HarmonyPostfix]
+			private static void Postfix(KeyboardState __state)
+			{
+				KeyboardState newstate = Keyboard.GetState();
+				if (PLAYER.avatar != null &&
+				__state.IsKeyDown(CONFIG.keyBindings[0].bind) && newstate.IsKeyUp(CONFIG.keyBindings[0].bind)
+				|| __state.IsKeyDown(CONFIG.keyBindings[1].bind) && newstate.IsKeyUp(CONFIG.keyBindings[1].bind)
+				|| __state.IsKeyDown(CONFIG.keyBindings[2].bind) && newstate.IsKeyUp(CONFIG.keyBindings[2].bind)
+				|| __state.IsKeyDown(CONFIG.keyBindings[3].bind) && newstate.IsKeyUp(CONFIG.keyBindings[3].bind)
+				)
+				{
+
+					if (PLAYER.avatar.shallNotPass() && PLAYER.avatar.shuffledBinds())
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(false);
+					}
+
+					if (CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A) //failsafe to load default keybinds
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(false);
+					}
+					PLAYER.avatar.shallNotPass(false);
+				}
+
+				/*
+				if (__state.IsKeyDown(Keys.PageDown) && newstate.IsKeyUp(Keys.PageDown))
+				{
+					var temp = CONFIG.keyBindings[0].bind;
+					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+					CONFIG.keyBindings[3].bind = temp;
+					temp = CONFIG.keyBindings[1].bind;
+					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+					CONFIG.keyBindings[2].bind = temp;
+					PLAYER.avatar.shuffledBinds(false);
+				}
+
+
+				if (__state.IsKeyDown(Keys.PageUp) && newstate.IsKeyUp(Keys.PageUp) && CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A)
+				{
+					var temp = CONFIG.keyBindings[0].bind;
+					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+					CONFIG.keyBindings[3].bind = temp;
+					temp = CONFIG.keyBindings[1].bind;
+					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+					CONFIG.keyBindings[2].bind = temp;
+					PLAYER.avatar.shuffledBinds(false);
+				}
+				*/
+
+			}
+		}
+
+		[HarmonyPatch(typeof(VNavigationRev3), "updateInput")]
+		public class VNavigationRev3_updateInput
+		{
+			[HarmonyPrefix]
+			private static void Prefix(ref KeyboardState __state, KeyboardState ___oldState)
+			{
+				__state = ___oldState;
+			}
+
+			[HarmonyPostfix]
+			private static void Postfix(KeyboardState __state)
+			{
+				KeyboardState newstate = Keyboard.GetState();
+				if (PLAYER.avatar != null &&
+				__state.IsKeyDown(CONFIG.keyBindings[0].bind) && newstate.IsKeyUp(CONFIG.keyBindings[0].bind)
+				|| __state.IsKeyDown(CONFIG.keyBindings[1].bind) && newstate.IsKeyUp(CONFIG.keyBindings[1].bind)
+				|| __state.IsKeyDown(CONFIG.keyBindings[2].bind) && newstate.IsKeyUp(CONFIG.keyBindings[2].bind)
+				|| __state.IsKeyDown(CONFIG.keyBindings[3].bind) && newstate.IsKeyUp(CONFIG.keyBindings[3].bind)
+				)
+				{
+
+					if (PLAYER.avatar.shallNotPass() && PLAYER.avatar.shuffledBinds())
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(false);
+					}
+
+					if (CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A) //failsafe to load default keybinds
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(false);
+					}
+					PLAYER.avatar.shallNotPass(false);
+				}
+
+				/*
+				if (__state.IsKeyDown(Keys.PageDown) && newstate.IsKeyUp(Keys.PageDown))
+				{
+					var temp = CONFIG.keyBindings[0].bind;
+					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+					CONFIG.keyBindings[3].bind = temp;
+					temp = CONFIG.keyBindings[1].bind;
+					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+					CONFIG.keyBindings[2].bind = temp;
+					PLAYER.avatar.shuffledBinds(false);
+				}
+
+
+				if (__state.IsKeyDown(Keys.PageUp) && newstate.IsKeyUp(Keys.PageUp) && CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A)
+				{
+					var temp = CONFIG.keyBindings[0].bind;
+					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+					CONFIG.keyBindings[3].bind = temp;
+					temp = CONFIG.keyBindings[1].bind;
+					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+					CONFIG.keyBindings[2].bind = temp;
+					PLAYER.avatar.shuffledBinds(false);
+				}
+				*/
+			}
+		}
+
+		[HarmonyPatch(typeof(Airlock), "tryUse")]
+		public class Airlock_tryUse
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(Airlock __instance, Crew c)
+			{
+				if (__instance.spot != null && c == PLAYER.avatar)
+				{
+
+					if(PLAYER.avatar.shallNotPass())
+					{
+						return false;
+                    }				
+					PLAYER.avatar.shallNotPass(true);
+					PLAYER.avatar.passDirection(__instance.connectDirection);
+				}
+				return true;
+			}
+		}
+
+		[HarmonyPatch(typeof(DockSpot), "receiveCrew")]
+		public class DockSpot_receiveCrew
+		{
+			[HarmonyPostfix]
+			private static void Postfix(DockSpot __instance, Crew c)
+			{
+				if (c == PLAYER.avatar && PLAYER.avatar.shallNotPass())
+				{
+					if (PLAYER.avatar.passDirection() == __instance.airlock.connectDirection)
+					{
+						var temp = CONFIG.keyBindings[0].bind;
+						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
+						CONFIG.keyBindings[3].bind = temp;
+						temp = CONFIG.keyBindings[1].bind;
+						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
+						CONFIG.keyBindings[2].bind = temp;
+						PLAYER.avatar.shuffledBinds(true);					
+					}
+					/*
+					if (__instance.docked.airlock.cosm.crew.Values.Contains(PLAYER.avatar))
+					{
+						Crew crew;
+						__instance.docked.airlock.cosm.crew.TryRemove(__instance.docked.airlock.cosm.crew.FirstOrDefault(x => x.Value == PLAYER.avatar).Key, out crew);
+					}
+					*/
+				}
+			}
+		}
+		[HarmonyPatch(typeof(CrewManager), "murder")]
+		public class CrewManager_murder
+		{
+			[HarmonyPostfix]
+			private static void Postfix(List<byte> ___removal, MicroCosm ___currentCosm)
+			{
+				if(PLAYER.avatar != null && PLAYER.avatar.shallNotPass() && ___removal.Contains(PLAYER.avatar.id) && !___currentCosm.crew.ContainsKey(PLAYER.avatar.id))
+				{ 
+					___currentCosm.crew.TryAdd(PLAYER.avatar.id, PLAYER.avatar);
+				}
+			}
+		}
+
+		//fixing followers not helping to fight teamless crew on stations
+		[HarmonyPatch(typeof(Crew), "findTargets")]
+		public class Crew_findTargets
+		{
+			[HarmonyPostfix]
+			private static void Postfix(Crew __instance)
+			{
+				if (!__instance.isPassive && __instance.team?.threats != null)
+				{
+					foreach (Crew crew2 in __instance.currentCosm.crew.Values)
+					{
+						if (crew2 != null && crew2.faction != __instance.faction && crew2.faction != 9UL && crew2.state != CrewState.dead && Vector2.DistanceSquared(crew2.position, __instance.position) < 600f * 600f)
+						{
+							if (__instance.currentCosm.isStation && !__instance.team.threats.Contains(crew2.faction))
+							{
+								if (__instance.faction == CONFIG.playerFaction && crew2.goal != null && crew2.goal.GetType() == typeof(Crew) && ((crew2.goal as Crew).isPlayer || (crew2.goal as Crew).faction == CONFIG.playerFaction) && crew2.state == CrewState.attacking)
+								{
+									__instance.team.threats.Add(crew2.faction);
+								}
+								return;
+							}
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		/* obsolete
+	[HarmonyPatch(typeof(WorldActor))]
+	[HarmonyPatch(MethodType.Constructor)]
+	[HarmonyPatch(new Type[] { typeof(OreRock) })]
+	public class WorldActor_WorldActor_OreRock
+	{
+
+		[HarmonyPrefix]
+		private static bool Prefix(WorldActor __instance, OreRock item)
+		{
+			__instance.ownershipHistory = new List<ulong>();
+			__instance.writeFinished = true;
+			__instance.hackingAvailable = 1f;
+			__instance.fadeOutTimer = -10f;
+			__instance.crewOutfitQuality = -1f;
+			item.setData();
+			__instance.type = ActorType.ore;
+			__instance.position = item.position;
+			__instance.grid = item.grid;
+			__instance.centerOfMass = item.artOrigin;
+			__instance.rotation = item.rotationAngle;
+			__instance.ownershipHistory = item.ownershipHistory;
+			__instance.id = item.id;
+			__instance.hackingAvailable = item.hackingAvailable;
+			__instance.width = item.Width;
+			__instance.height = item.Height;
+			__instance.top = item.topD;
+			__instance.bot = item.botD;
+			__instance.bump = item.bumpD;
+			__instance.spec = item.specD;
+			__instance.emit = item.emitD;
+			if (item.cosm != null)
+			{
+				item.cosm.ship = null;
+				__instance.speed = 0f;
+				CosmMetaData data = item.cosm.getData();
+				if (data.significant())
+				{
+					__instance.data = data;
+				}
+				item.cosm.actor = __instance;
+				//__instance.writeFinished = false;
+				item.cosm.alive = false;
+				item.cosm = null;
+			}
+			else
+			{
+				__instance.speed = 0f;
+			}
+			item.Dispose();
+			return false;
+		}
+	}
+	*/
+		/* obsolete
+		// fixing: After meeting Tony, if you exit the game before fixing the ship, ship will disappear on loading.
+		[HarmonyPatch(typeof(WorldActor))]
+		[HarmonyPatch(MethodType.Constructor)]
+		[HarmonyPatch(new Type[] { typeof(Ship) })]
+		public class WorldActor_WorldActor_Ship
+		{
+
+			[HarmonyPrefix]
+			private static bool Prefix(WorldActor __instance, Ship item)
+			{
+				__instance.ownershipHistory = new List<ulong>();
+				__instance.writeFinished = true;
+				__instance.hackingAvailable = 1f;
+				__instance.fadeOutTimer = -10f;
+				__instance.crewOutfitQuality = -1f;
+				if (item.constructionAnim != null)
+				{
+					new Color(0, 0, 0, 0);
+					for (int i = 0; i < item.topD.Length; i++)
+					{
+						if ((item.botD[i].R != 0 || item.botD[i].G != 0 || item.botD[i].B != 0) && !TILEBAG.isShieldTileColor(ref item.botD[i]))
+						{
+							item.topD[i].A = byte.MaxValue;
+						}
+						if (item.botD[i].R != 0 || item.botD[i].G != 0 || item.botD[i].B != 0)
+						{
+							item.dataChangedB = true;
+							item.botD[i].A = byte.MaxValue;
+						}
+					}
+				}
+				item.setData();
+				__instance.speed = 2000f;
+				__instance.fadeOutTimer = item.fadeOutTimer;
+				if (__instance.fadeOutTimer > -5f)
+				{
+					__instance.speed = 0f;
+				}
+				__instance.crewOutfitQuality = -1f;
+				__instance.type = ActorType.ship;
+				__instance.position = item.position;
+				__instance.grid = item.grid;
+				__instance.centerOfMass = item.artOrigin;
+				__instance.rotation = item.rotationAngle;
+				__instance.ownershipHistory = item.ownershipHistory;
+				__instance.dockingActive = (item.dockingActive || item.docked.Count<Ship>() > 0);
+				__instance.data = item.data;
+				__instance.id = item.id;
+				__instance.intval = item.unlockIndex;
+				__instance.hackingAvailable = item.hackingAvailable;
+				__instance.tuning = item.tuning;
+				if (item.docked != null && item.docked.Count > 0)
+				{
+					__instance.dockedShips = new List<DockStatus>();
+					foreach (Ship ship in item.docked)
+					{
+						foreach (DockSpot dockSpot in item.docking)
+						{
+							if (dockSpot.docked != null && dockSpot.docked.parent == ship)
+							{
+								uint pivotTile = dockSpot.pivotTile;
+								uint pivotTile2 = dockSpot.docked.pivotTile;
+								DockStatus item2 = default(DockStatus);
+								item2.partner = ship.id;
+								item2.myTile = pivotTile;
+								item2.theirTile = pivotTile2;
+								__instance.dockedShips.Add(item2);
+								break;
+							}
+						}
+					}
+				}
+				if (item.spawnIndex != -1)
+				{
+					if (item.cosm != null)
+					{
+						if (item.consoles != null && item.consoles.ContainsKey(0) && item.consoles[0].crew != null)
+						{
+							__instance.speed = item.cosm.topSpeed.data;
+						}
+						CosmMetaData data = item.cosm.getData();
+						if (data.significant())
+						{
+							__instance.data = data;
+						}
+						item.cosm.actor = __instance;
+						item.cosm.ship = null;
+						__instance.writeFinished = true;
+						item.cosm.alive = false;
+					}				
+					item.cosm = null;
+				}
+				else
+				{
+					__instance.width = item.Width;
+					__instance.height = item.Height;
+					__instance.top = item.topD;
+					__instance.bot = item.botD;
+					__instance.bump = item.bumpD;
+					__instance.spec = item.specD;
+					__instance.emit = item.emitD;
+					__instance.turrets = item.turrets;
+					if (item.cosm != null)
+					{
+						if (item.consoles != null && item.consoles.ContainsKey(0) && item.consoles[0].crew != null)
+						{
+							__instance.speed = item.cosm.topSpeed.data;
+						}
+						CosmMetaData data = item.cosm.getData();
+						if (data.significant())
+						{
+							__instance.data = data;
+						}
+						item.cosm.actor = __instance;
+						__instance.writeFinished = true;
+						item.cosm.ship = null;
+						item.cosm.alive = false;
+						item.cosm = null;
+					}
+					else
+					{
+						__instance.speed = 0f;
+					}
+				}
+				item.Dispose();
+				if (__instance.data != null && __instance.data.crew != null && __instance.ownershipHistory.Count > 0)
+				{
+					foreach (Crew crew2 in __instance.data.crew)
+					{
+						if (crew2.state != CrewState.dead && crew2.faction == __instance.ownershipHistory.Last<ulong>())
+						{
+							__instance.dominantTeam = crew2.team;
+						}
+					}
+				}
+				return false;
+			}
+		}
+
+		*/
+		/* obsolete
+//fixing: missing icons for grey goo factories on world map.	
+[HarmonyPatch(typeof(WorldRev3), "applySessionData")]
+public class WorldRev3_applySessionData
+{
+	[HarmonyPrefix]
+	private static void Prefix(WorldRev3 __instance)
+	{
+			foreach (var node in __instance.economy.nodes)
+			{
+				if (node.type == EconomicStationType.goo_factory)
+				{
+					if (__instance.icons.ContainsKey(node.grid) && !__instance.icons[node.grid].Exists(icon => icon.flag == "econ_goo_factory_1" && icon.position == node.position))
+					{
+						var poiicon = new POEIcon
+						{
+							artSource = new Rectangle(0, 0, 64, 64),
+							flag = "econ_goo_factory_1",
+							globallyVisible = false,
+							position = node.position,
+							seen = false,
+							sensorVisible = true
+						};
+						__instance.icons[node.grid].Add(poiicon);
+					}
+					else if(__instance.icons.ContainsKey(node.grid) && __instance.icons[node.grid].Exists(icon => icon.flag == "econ_goo_factory_1" && icon.position == node.position && icon.artSource == Rectangle.Empty))
+					{
+						var result = __instance.icons[node.grid].Find(icon => icon.flag == "econ_goo_factory_1" && icon.position == node.position && icon.artSource == Rectangle.Empty);
+						__instance.icons[node.grid].Remove(result);
+						var poiicon = new POEIcon
+						{
+							artSource = new Rectangle(0, 0, 64, 64),
+							flag = result.flag,
+							globallyVisible = result.globallyVisible,
+							position = result.position,
+							seen = result.seen,
+							sensorVisible = result.sensorVisible
+						};
+						__instance.icons[node.grid].Add(poiicon);
+
+					}
+				}
+			}
+	}
+}
+
+
+//fixing: adding crew to AI ships which spawn with less crew then consoles.
+
+[HarmonyPatch(typeof(WorldActor), "getShip", new Type[] { typeof(byte) })]
+public class WorldActor_getShip
+{
+	[HarmonyPostfix]
+	private static void Postfix(ref Ship __result)
+	{
+		if (__result != null && __result.faction != 2UL && __result.cosm?.crew != null && __result.cosm.crew.Count > 0)
+		{
+			if (__result.cosm.crew.Count <= __result.cosm.consoles.Count)
+			{
+				int crewtoadd = __result.cosm.consoles.Count - __result.cosm.crew.Count;
+				for (int i = 0; i < crewtoadd; i++)
+				{
+					__result.cosm.addOneCrew();
+				}					
+			}
+		}
+	}
+}
+
+//qol: ally crew will no longer assume control of the ship if Player orders the crew away from consoles and puts them on hold before leaving the ship.
+
+[HarmonyPatch(typeof(CrewManager), "checkConsoles")]
+public class CrewManager_checkConsoles
+{
+	[HarmonyPrefix]
+	private static bool Prefix(CrewManager __instance)
+	{
+		bool flag = true;
+		if (__instance.currentCosm.ship != null && __instance.currentCosm.ship.id == PLAYER.currentTeam.ownedShip)
+		{
+			flag = false;
+		}
+		else
+		{
+			using (IEnumerator<Crew> enumerator = __instance.currentCosm.crew.Values.GetEnumerator())
+			{
+				while (enumerator.MoveNext())
+				{
+					if (enumerator.Current.isPlayer)
+					{
+						flag = false;
+					}
+				}
+			}
+		}
+		if (flag)
+		{
+			foreach (ConsoleAccess consoleAccess in __instance.currentCosm.consoles)
+			{
+				if (consoleAccess.console != null && consoleAccess.console.isFree())
+				{
+					bool flag2 = false;
+					foreach (byte key in __instance.currentCosm.crew.Keys)
+					{
+						if (flag2)
+						{
+							break;
+						}
+						if (__instance.currentCosm.crew[key].state == CrewState.idle && !__instance.currentCosm.crew[key].isPlayer && (__instance.currentCosm.crew[key].faction != CONFIG.playerFaction || PLAYER.currentTeam.orderid == 0))
+						{
+							ModTile[] tiles = consoleAccess.tiles;
+							for (int i = 0; i < tiles.Length; i++)
+							{
+								if (!tiles[i].blocking)
+								{
+									__instance.currentCosm.crew[key].setGoal(consoleAccess.tiles[0]);
+									flag2 = true;
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		return false;
+	}
+}
+
+
+//fixing: crash in logistics screen while assigning turrets if your crew is on that ship.
+
+[HarmonyPatch(typeof(ShipAIManager), "stepAI")]
+public class ShipAIManager_stepAI
+{
+	[HarmonyPrefix]
+	private static bool Prefix(float elapsed, ShipAIManager __instance)
+	{
+		foreach (Ship ship in __instance.session.allShips.Values)
+		{
+			if (ship.aiControlled && ship.cosm != null)
+			{
+				if (ship.cosm.brain == null)
+				{
+					continue;
+				}
+				using (Dictionary<byte, Console>.ValueCollection.Enumerator enumerator2 = ship.consoles.Values.GetEnumerator())
+				{
+					while (enumerator2.MoveNext())
+					{
+						Console console = enumerator2.Current;
+						if (!ship.aiConThoughts.ContainsKey((int)console.group))
+						{
+							ship.aiConThoughts[(int)console.group] = new ConsoleThought(ship.cosm.brain, ship);
+						}
+						if (console.group == 0)
+						{
+							if (CONFIG.debugAI)
+							{
+								ship.aiConThoughts[(int)console.group].navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+								continue;
+							}
+							try
+							{
+								ship.aiConThoughts[(int)console.group].navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+								continue;
+							}
+							catch
+							{
+								continue;
+							}
+						}
+						if (CONFIG.debugAI)
+						{
+							ship.aiConThoughts[(int)console.group].gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+						}
+						else
+						{
+							try
+							{
+								ship.aiConThoughts[(int)console.group].gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console, elapsed);
+							}
+							catch
+							{
+							}
+						}
+					}
+					continue;
+				}
+			}
+			foreach (Console console2 in ship.consoles.Values)
+			{
+				if (ship.cosm != null && console2.crew != null && !console2.crew.isPlayer && console2.crew.conThoughts != null && console2.crew.state == CrewState.operating)
+				{
+					if (console2.group == 0)
+					{
+						if (CONFIG.debugAI)
+						{
+							console2.crew.conThoughts.navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
+							continue;
+						}
+						try
+						{
+							console2.crew.conThoughts.navUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
+							continue;
+						}
+						catch
+						{
+							console2.crew = null;
+							continue;
+						}
+					}
+					if (CONFIG.debugAI)
+					{
+						console2.crew.conThoughts.gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
+					}
+					else
+					{
+						try
+						{
+							console2.crew.conThoughts.gunUpdate(ship.cosm.interiorAlerts, __instance.session, ship, console2, elapsed);
+						}
+						catch
+						{
+							console2.crew = null;
+						}
+					}
+				}
+			}
+		}
+		return false;
+	}
+}
+*/
+
+		/*obsolete
+//fixing: portraits of Bard
+[HarmonyPatch(typeof(BardAgent))]
+[HarmonyPatch(MethodType.Constructor)]
+[HarmonyPatch(new Type[] { })]
+public class BardAgent_BardAgent
+{
+	[HarmonyPostfix]
+	private static void Postfix(BardAgent __instance)
+	{
+		__instance.portraitSmall = "Bard";
+		__instance.portraitLarge = "BardL";
+		__instance.portraitTiny = "BardT";
+	}
+}
+
+//fixing: portraits of Bard
+[HarmonyPatch(typeof(BardAgent))]
+[HarmonyPatch(MethodType.Constructor)]
+[HarmonyPatch(new Type[] { typeof(BinaryReader) })]
+public class BardAgent_BardAgentBinaryReader
+{
+	[HarmonyPostfix]
+	private static void Postfix(BardAgent __instance)
+	{
+		__instance.portraitSmall = "Bard";
+		__instance.portraitLarge = "BardL";
+		__instance.portraitTiny = "BardT";
+	}
+}
+
+//fixing: assigned turrets tool tips vanishing in logistics screen
+[HarmonyPatch(typeof(LogisticsScreenRev3), "Update")]
+public class LogisticsScreenRev3_Update
+{
+	[HarmonyPrefix]
+	private static void Prefix(ref uint ___drawMode, LogisticsScreenRev3 __instance, float elapsed)
+	{				
+		if (___drawMode == 0U)
+		{
+			if (Game1.instance.IsActive)
+			{
+				if (SCREEN_MANAGER.dialogue == null)
+				{
+						___drawMode = 20U;
+						if (SCREEN_MANAGER.popupOverlay != null)
+						{
+							//this.openInventory();
+							BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+							typeof(LogisticsScreenRev3).GetMethod("openInventory", flags, null, Type.EmptyTypes, null).Invoke(__instance, null);
+						}
+						else if (PROCESS_REGISTER.transition == null)
+						{
+							__instance.updateInput(elapsed);
+						}
+
+				}				
+			}				
+		}
+	}
+
+	[HarmonyPostfix]
+	private static void Postfix(ref uint ___drawMode)
+	{
+		if (___drawMode == 20U)
+		{
+			___drawMode = 0U;
+		}
+
+	}
+
+}
+*/
+
+
+
+		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
+		/*
+		[HarmonyPatch(typeof(LatticeRepairEffect), "repairOne")]
+		public class LatticeRepairEffect_repairOne
+		{
+			
+			private static bool canRepair(Ship ship, int ___indexRoller)
+			{
+				if (ship.cosm == null)
+					return false;
+				for (int i = 0; i < 8; i++)
+				{
+					if (ship.cosm.tiles[___indexRoller].neighbors[i] != null && ship.cosm.tiles[___indexRoller].neighbors[i].A == byte.MaxValue && TILEBAG.isAnyArmorTileColor(ref ship.botD[Array.IndexOf(ship.cosm.tiles, ship.cosm.tiles[___indexRoller].neighbors[i])]))
+					{
+						return true;
+					}
+					else if (ship.cosm.tiles[___indexRoller].neighbors[i] != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner.hitpoints == ship.cosm.tiles[___indexRoller].neighbors[i].owner.hitpointsMax)
+					{
+						if (ship.cosm.tiles[___indexRoller].neighbors[i].owner.IsRooted(ship))
+						{
+							for (int k = 0; k < ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles.Length; k++)
+							{
+								for (int j = 0; j < 8; j++)
+								{
+									if (ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j] != null && ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner != null
+									&& ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.hitpoints == ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.hitpointsMax &&
+									ship.cosm.tiles[___indexRoller].neighbors[i].owner.tiles[k].neighbors[j].owner.IsRooted(ship))
+									{
+										return true;
+									}
+								}
+							}
+						}
+					}
+				}
+				return false;
+			}
+
+			[HarmonyPrefix]
+			private static bool Prefix(Ship ship, ref int ___indexRoller, LatticeRepairEffect __instance)
+			{
+				int num = ship.botD.Length;
+				int num2 = num / 8;
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+				___indexRoller += RANDOM.Next(ship.Width);
+				if (___indexRoller >= num)
+				{
+					___indexRoller = 0;
+				}
+				int num3 = 0;
+				var args = new object[] { ship };
+				while (num3 < num2 && (bool)typeof(LatticeRepairEffect).GetMethod("invalidIndex", flags, null, new Type[] { typeof(Ship) }, null).Invoke(__instance, args))
+				{
+					___indexRoller += 2;
+					num3 += 2;
+					if (___indexRoller >= num)
+					{
+						___indexRoller = 0;
+					}
+				}
+				if (num3 < num2 && canRepair(ship,___indexRoller))
+				{
+					Color color = ship.botD[___indexRoller];
+					SpriteUpdate spriteUpdate = SpriteUpdate.newPooled();
+					spriteUpdate.add(___indexRoller, false, false, (byte)(byte.MaxValue - color.A));
+					ship.botD[___indexRoller].A = byte.MaxValue;
+					ship.dataChangedB = true;
+					ship.publisher.publishClient(spriteUpdate);
+				}
+				return false;
+			}
+		}
+	    
+		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
+		
+		[HarmonyPatch(typeof(NanoAura), "repairBot")]
+		public class NanoAura_repairBot
+		{
+
+			private static bool invalidIndex(MicroCosm cosm, ModTile tile)
+			{
+				int indexRoller = Array.IndexOf(cosm.tiles, tile);
+				if (indexRoller >= cosm.ship.Width && cosm.ship.botD[indexRoller - cosm.ship.Width].A > 0)
+				{
+					return false;
+				}
+				if (indexRoller < cosm.ship.botD.Length - 1 && cosm.ship.botD[indexRoller + 1].A > 0)
+				{
+					return false;
+				}
+				if (indexRoller < cosm.ship.botD.Length - cosm.ship.Width - 1 && cosm.ship.botD[indexRoller + cosm.ship.Width].A > 0)
+				{
+					return false;
+				}
+				if (indexRoller > 1 && cosm.ship.botD[indexRoller - 1].A > 0)
+				{
+					return false;
+				}
+			
+				return true;
+			}
+
+
+			[HarmonyPrefix]
+			private static void Prefix(Crew source)
+			{
+
+				int count = source.currentCosm.modules.Count;
+				int number = RANDOM.Next(count);
+				int number2 = 0;
+				SpriteUpdate spriteUpdate = null;
+				while (number2 < count) //&& source.currentCosm.modules[number].hitpoints == source.currentCosm.modules[number].hitpointsMax)
+				{
+					
+					for (int i = 0; i < source.currentCosm.modules[number].tiles.Length; i++ )
+					{
+						for(int j = 0; j < 8 ; j++)
+						{
+							if(source.currentCosm.modules[number].hitpoints == source.currentCosm.modules[number].hitpointsMax && source.currentCosm.modules[number].tiles[i].neighbors[j] != null && source.currentCosm.modules[number].tiles[i].neighbors[j].A == 0 && source.currentCosm.modules[number].tiles[i].neighbors[j].repairable)
+							{
+
+								if (spriteUpdate == null)
+								{
+									spriteUpdate = SpriteUpdate.newPooled();
+								}
+								spriteUpdate.add(source.currentCosm.modules[number].tiles[i].neighbors[j].X, false, false, 1);
+								ModTile modTile = source.currentCosm.modules[number].tiles[i].neighbors[j];
+								modTile.A += 1;
+								
+							}
+							if(source.currentCosm.modules[number].hitpoints != source.currentCosm.modules[number].hitpointsMax && source.currentCosm.modules[number].tiles[i].A == 0						
+							&& source.currentCosm.modules[number].tiles[i].neighbors[j] != null && source.currentCosm.modules[number].tiles[i].neighbors[j].hasNeighbors())
+							{
+								if (spriteUpdate == null)
+								{
+									spriteUpdate = SpriteUpdate.newPooled();
+								}
+								spriteUpdate.add(source.currentCosm.modules[number].tiles[i].X, false, false, 1);
+								ModTile modTile = source.currentCosm.modules[number].tiles[i];
+								modTile.A += 1;
+								source.currentCosm.publisher.publishCosm(spriteUpdate);
+								return;
+							}
+                        }
+					}
+					number2++;
+					number++;
+					if (number >= count)
+					{
+						number = 0;
+					}				
+				}
+				if (spriteUpdate != null)
+				{
+					source.currentCosm.publisher.publishCosm(spriteUpdate);
+				}
+
+			}
+
+		}
+		
+
+		//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
+		[HarmonyPatch(typeof(Module), "repairWhole")]
+		public class Module_repairWhole
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(uint amt, ref bool __result, Module __instance)
+			{
+				SpriteUpdate spriteUpdate = null;
+				uint num = 0U;
+				int num2 = RANDOM.Next(__instance.tiles.Length);
+				bool flag = false;
+				int num3 = 0;
+				while (!flag && num3 < __instance.tiles.Length)
+				{
+					num2++;
+					num3++;
+					if (num2 >= __instance.tiles.Length)
+					{
+						num2 = 0;
+					}
+					if (__instance.tiles[num2].A < 255)
+					{
+
+						if (__instance.tiles[num2].neighbors[1] != null && __instance.tiles[num2].neighbors[1].A > 0)
+						{
+							flag = true;
+							break;
+						}
+
+						if (__instance.tiles[num2].neighbors[3] != null && __instance.tiles[num2].neighbors[3].A > 0)
+						{
+							flag = true;
+							break;
+						}
+						if (__instance.tiles[num2].neighbors[4] != null && __instance.tiles[num2].neighbors[4].A > 0)
+						{
+							flag = true;
+							break;
+						}
+						if (__instance.tiles[num2].neighbors[6] != null && __instance.tiles[num2].neighbors[6].A > 0)
+						{
+							flag = true;
+							break;
+						}
+					}
+				}
+				if (!flag && !__instance.IsRooted(__instance.cosm.ship))
+				{
+					__result = false;
+					return false;
+				}
+				
+				int num4 = __instance.tiles.Length;
+				while (num < amt && num4 > 0)
+				{
+					uint num5 = amt - num;
+					uint num6 = (uint)(byte.MaxValue - __instance.tiles[num2].A);
+					if (num6 > 0U)
+					{
+						if (spriteUpdate == null)
+						{
+							spriteUpdate = SpriteUpdate.newPooled();
+						}
+						if (num6 >= num5)
+						{
+							ModTile modTile = __instance.tiles[num2];
+							modTile.A += (byte)num5;
+							spriteUpdate.add(__instance.tiles[num2].X, false, false, (byte)num5);
+							num = amt;
+						}
+						else if (num6 < num5)
+						{
+							spriteUpdate.add(__instance.tiles[num2].X, false, false, (byte)num6);
+							__instance.tiles[num2].A = byte.MaxValue;
+							num += num6;
+						}
+					}
+					num4--;
+					num2++;
+					if (num2 >= __instance.tiles.Length)
+					{
+						num2 = 0;
+					}
+				}
+				if (spriteUpdate != null)
+				{
+					__instance.cosm.publisher.publishCosm(spriteUpdate);
+				}
+				__result = num < amt;
+				return false;
+			}
+
+		}
+		*/
+		/* obsolete
+		//fixing: some quests not removing aggro of quest ships properly.
+		[HarmonyPatch(typeof(NonPlayerShip), "removeThreat")]
+		public class NonPlayerShip_removeThreat
+		{
+			[HarmonyPostfix]
+			private static void Postfix(ulong threatFaction, Ship ___ship)
+			{
+				if (___ship != null)
+				{
+					if (___ship.cosm?.crew != null)
+					{
+						foreach (var crew in ___ship.cosm.crew.Values)
+						{
+							if (crew.faction == ___ship.faction && crew.team?.threats != null)
+							{ 
+								crew.team.threats.Remove(threatFaction);
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		*/
+
+		/* obsolete
+		//fixing: End the siege quest not counting killed enemies properly.
+		[HarmonyPatch(typeof(SiegeQuest), "waitForAllDeadStage")]
+		public class SiegeQuest_waitForAllDeadStage
+		{
+			[HarmonyPrefix]
+			private static bool Prefix(SiegeQuest __instance, CallFunctionStage stage, float elapsed, ref bool __result, ref int ___killCounter, List<ulong> ___enemies, TipStatSmall ___tipStat, ref float ___timer)
+			{
+				int num = ___killCounter;
+				___timer += elapsed;
+				if (___timer > 30f)
+				{
+					___timer = 0f;
+					foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
+					{
+						if (factionControllerRev.GetType() == typeof(FriendlyPirateFaction))
+						{
+							FriendlyPirateFaction friendlyPirateFaction = factionControllerRev as FriendlyPirateFaction;
+							if (PLAYER.currentSession.grid == friendlyPirateFaction.homeGrid)
+							{
+								___killCounter = ___enemies.Count;
+								foreach (ulong enemy in ___enemies)
+								{ 
+									if (PLAYER.currentSession.allShips.Keys.Contains(enemy) && PLAYER.currentSession.allShips[enemy].cosm?.crew != null && !PLAYER.currentSession.allShips[enemy].cosm.crew.IsEmpty)
+									{
+										___killCounter--;
+									}								 
+								}
+							}
+						}
+					}
+				}
+				if (num != ___killCounter)
+				{
+					___tipStat.value = ___killCounter.ToString() + " / " + ___enemies.Count.ToString();
+				}
+				stage.nextStage = stage;
+				if (___killCounter >= ___enemies.Count)
+				{
+					stage.nextStage = null;
+					foreach (FactionControllerRev2 factionControllerRev in PLAYER.currentWorld.factions)
+					{
+						if (factionControllerRev.GetType() == typeof(FriendlyPirateFaction))
+						{
+							FriendlyPirateFaction friendlyPirateFaction = factionControllerRev as FriendlyPirateFaction;
+							if (PLAYER.currentSession.grid == friendlyPirateFaction.homeGrid)
+							{
+								friendlyPirateFaction.calm();
+							}
+						}
+					}
+				}
+				__result = false;
+				return false; //instruction for harmony to supress executing the original method
+			}
+		}
+		*/
+
+
+		//fixing: Unable to recruit Vaal after conversation with her. (fixing already bugged saves)
+		/*
+		[HarmonyPatch(typeof(AgentTracker), "getBarAgents")]
+		public class AgentTracker_getBarAgents
+		{
+
+			[HarmonyPrefix]
+			private static void Prefix(AgentTracker __instance, ref List<BarAgentDrawer> __result, ulong stationID, Point grid)
+			{
+				BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
+				foreach (NPCAgent npcagent in __instance.allAgents)
+				{
+					if (npcagent.name == "Vaal")
+					{
+						var field = typeof(ValAgent).GetField("adopted", flags);
+						var adopted = (bool)field.GetValue(npcagent);
+						if (!__instance.unlockedFriends.Contains(npcagent) && adopted == true)
+						{
+							npcagent.canJoin = true;
+							__instance.adoptAgent(npcagent.name);
+							bool found = false;
+							if (PLAYER.currentGame != null && PLAYER.currentGame.activeQuests != null)
+							{
+								foreach (TriggerEvent triggerEvent in PLAYER.currentGame.activeQuests)
+								{
+									if (triggerEvent.name == "find_crew")
+									{
+										triggerEvent.stage += 1U;
+										found = true;
+									}
+								}
+							}
+							if (CHARACTER_DATA.maxCrew == 0)
+							{
+								PLAYER.currentGame.activeQuests.Add(new CloningReminder(found));
+							}
+						}
+					}
+				}
+			}
+		}
+		*/
+
+		/* obsolete
 		//fixing: unable to use logistics room to stash resources from homebase cargobays to ship building resources pool. (now you can use "Unload cargo" on your homebase)
 		[HarmonyPatch(typeof(LogisticsScreenRev3), "updateInput")]
 		public class LogisticsScreenRev3_updateInput
@@ -1895,8 +2172,8 @@ namespace Community_Bug_Fixes
 				}
 			}
 		}
+		*/
 
-		
 		/*obsolete
 		/// <summary>
 		/// fixed
@@ -3356,215 +3633,8 @@ namespace Community_Bug_Fixes
 		}
 		*/
 
-		//qol: player avatar will continue to run forward instead of turning back until a movement key is released after passing through airlock to another ship if both ships have their airlocks on the same axis (facing the same direction).
-		[HarmonyPatch(typeof(ShipNavigationRev3), "updateInput")]
-		public class ShipNavigationRev3_updateInput
-		{
-			[HarmonyPrefix]
-			private static void Prefix(ref KeyboardState __state, KeyboardState ___oldState)
-			{
-				__state = ___oldState;
-			}
-
-			[HarmonyPostfix]
-			private static void Postfix(KeyboardState __state)
-			{
-				KeyboardState newstate = Keyboard.GetState();
-				if(PLAYER.avatar != null &&
-				__state.IsKeyDown(CONFIG.keyBindings[0].bind) && newstate.IsKeyUp(CONFIG.keyBindings[0].bind) 
-				|| __state.IsKeyDown(CONFIG.keyBindings[1].bind) && newstate.IsKeyUp(CONFIG.keyBindings[1].bind) 
-				|| __state.IsKeyDown(CONFIG.keyBindings[2].bind) && newstate.IsKeyUp(CONFIG.keyBindings[2].bind) 
-				|| __state.IsKeyDown(CONFIG.keyBindings[3].bind) && newstate.IsKeyUp(CONFIG.keyBindings[3].bind)
-				)
-				{
-
-					if (PLAYER.avatar.shallNotPass() && PLAYER.avatar.shuffledBinds())
-					{
-						var temp = CONFIG.keyBindings[0].bind;
-						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-						CONFIG.keyBindings[3].bind = temp;
-						temp = CONFIG.keyBindings[1].bind;
-						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-						CONFIG.keyBindings[2].bind = temp;
-						PLAYER.avatar.shuffledBinds(false);
-					}
-
-					if (CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A) //failsafe to load default keybinds
-					{
-						var temp = CONFIG.keyBindings[0].bind;
-						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-						CONFIG.keyBindings[3].bind = temp;
-						temp = CONFIG.keyBindings[1].bind;
-						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-						CONFIG.keyBindings[2].bind = temp;
-						PLAYER.avatar.shuffledBinds(false);
-					}
-					PLAYER.avatar.shallNotPass(false);
-				}
-				
-					/*
-					if (__state.IsKeyDown(Keys.PageDown) && newstate.IsKeyUp(Keys.PageDown))
-					{
-						var temp = CONFIG.keyBindings[0].bind;
-						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-						CONFIG.keyBindings[3].bind = temp;
-						temp = CONFIG.keyBindings[1].bind;
-						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-						CONFIG.keyBindings[2].bind = temp;
-						PLAYER.avatar.shuffledBinds(false);
-					}
-
-
-					if (__state.IsKeyDown(Keys.PageUp) && newstate.IsKeyUp(Keys.PageUp) && CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A)
-					{
-						var temp = CONFIG.keyBindings[0].bind;
-						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-						CONFIG.keyBindings[3].bind = temp;
-						temp = CONFIG.keyBindings[1].bind;
-						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-						CONFIG.keyBindings[2].bind = temp;
-						PLAYER.avatar.shuffledBinds(false);
-					}
-					*/
-	}
-		}
-
-		[HarmonyPatch(typeof(VNavigationRev3), "updateInput")]
-		public class VNavigationRev3_updateInput
-		{
-			[HarmonyPrefix]
-			private static void Prefix(ref KeyboardState __state, KeyboardState ___oldState)
-			{
-				__state = ___oldState;
-			}
-
-			[HarmonyPostfix]
-			private static void Postfix(KeyboardState __state)
-			{
-				KeyboardState newstate = Keyboard.GetState();
-				if (PLAYER.avatar != null &&
-				__state.IsKeyDown(CONFIG.keyBindings[0].bind) && newstate.IsKeyUp(CONFIG.keyBindings[0].bind)
-				|| __state.IsKeyDown(CONFIG.keyBindings[1].bind) && newstate.IsKeyUp(CONFIG.keyBindings[1].bind)
-				|| __state.IsKeyDown(CONFIG.keyBindings[2].bind) && newstate.IsKeyUp(CONFIG.keyBindings[2].bind)
-				|| __state.IsKeyDown(CONFIG.keyBindings[3].bind) && newstate.IsKeyUp(CONFIG.keyBindings[3].bind)
-				)
-				{
-
-					if (PLAYER.avatar.shallNotPass() && PLAYER.avatar.shuffledBinds())
-					{
-						var temp = CONFIG.keyBindings[0].bind;
-						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-						CONFIG.keyBindings[3].bind = temp;
-						temp = CONFIG.keyBindings[1].bind;
-						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-						CONFIG.keyBindings[2].bind = temp;
-						PLAYER.avatar.shuffledBinds(false);
-					}
-
-					if (CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A) //failsafe to load default keybinds
-					{
-						var temp = CONFIG.keyBindings[0].bind;
-						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-						CONFIG.keyBindings[3].bind = temp;
-						temp = CONFIG.keyBindings[1].bind;
-						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-						CONFIG.keyBindings[2].bind = temp;
-						PLAYER.avatar.shuffledBinds(false);
-					}
-					PLAYER.avatar.shallNotPass(false);
-				}
-
-				/*
-				if (__state.IsKeyDown(Keys.PageDown) && newstate.IsKeyUp(Keys.PageDown))
-				{
-					var temp = CONFIG.keyBindings[0].bind;
-					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-					CONFIG.keyBindings[3].bind = temp;
-					temp = CONFIG.keyBindings[1].bind;
-					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-					CONFIG.keyBindings[2].bind = temp;
-					PLAYER.avatar.shuffledBinds(false);
-				}
-
-
-				if (__state.IsKeyDown(Keys.PageUp) && newstate.IsKeyUp(Keys.PageUp) && CONFIG.keyBindings[0].bind == Keys.S && CONFIG.keyBindings[3].bind == Keys.W && CONFIG.keyBindings[1].bind == Keys.D && CONFIG.keyBindings[2].bind == Keys.A)
-				{
-					var temp = CONFIG.keyBindings[0].bind;
-					CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-					CONFIG.keyBindings[3].bind = temp;
-					temp = CONFIG.keyBindings[1].bind;
-					CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-					CONFIG.keyBindings[2].bind = temp;
-					PLAYER.avatar.shuffledBinds(false);
-				}
-				*/
-			}
-		}
-
-		[HarmonyPatch(typeof(Airlock), "tryUse")]
-		public class Airlock_tryUse
-		{
-			[HarmonyPrefix]
-			private static bool Prefix(Airlock __instance, Crew c)
-			{
-				if (__instance.spot != null && c == PLAYER.avatar)
-				{
-
-					if(PLAYER.avatar.shallNotPass())
-					{
-						return false;
-                    }				
-					PLAYER.avatar.shallNotPass(true);
-					PLAYER.avatar.passDirection(__instance.connectDirection);
-				}
-				return true;
-			}
-		}
-
-		[HarmonyPatch(typeof(DockSpot), "receiveCrew")]
-		public class DockSpot_receiveCrew
-		{
-			[HarmonyPostfix]
-			private static void Postfix(DockSpot __instance, Crew c)
-			{
-				if (c == PLAYER.avatar && PLAYER.avatar.shallNotPass())
-				{
-					if (PLAYER.avatar.passDirection() == __instance.airlock.connectDirection)
-					{
-						var temp = CONFIG.keyBindings[0].bind;
-						CONFIG.keyBindings[0].bind = CONFIG.keyBindings[3].bind;
-						CONFIG.keyBindings[3].bind = temp;
-						temp = CONFIG.keyBindings[1].bind;
-						CONFIG.keyBindings[1].bind = CONFIG.keyBindings[2].bind;
-						CONFIG.keyBindings[2].bind = temp;
-						PLAYER.avatar.shuffledBinds(true);					
-					}
-					/*
-					if (__instance.docked.airlock.cosm.crew.Values.Contains(PLAYER.avatar))
-					{
-						Crew crew;
-						__instance.docked.airlock.cosm.crew.TryRemove(__instance.docked.airlock.cosm.crew.FirstOrDefault(x => x.Value == PLAYER.avatar).Key, out crew);
-					}
-					*/
-				}
-			}
-		}
-		[HarmonyPatch(typeof(CrewManager), "murder")]
-		public class CrewManager_murder
-		{
-			[HarmonyPostfix]
-			private static void Postfix(List<byte> ___removal, MicroCosm ___currentCosm)
-			{
-				if(PLAYER.avatar != null && PLAYER.avatar.shallNotPass() && ___removal.Contains(PLAYER.avatar.id) && !___currentCosm.crew.ContainsKey(PLAYER.avatar.id))
-				{ 
-					___currentCosm.crew.TryAdd(PLAYER.avatar.id, PLAYER.avatar);
-				}
-			}
-		}
-
-
 		//experimental/possible obsolete fixes of the (caught) exception on remobing ships from collection while iterating on it.
-		
+		/*
 		[HarmonyPatch(typeof(PirateFactionRev2), "updateFlotillas")]
 		public class PirateFactionRev2_updateFlotillas
 		{
@@ -3785,34 +3855,8 @@ namespace Community_Bug_Fixes
 				return false; //instruction for harmony to supress executing the original method
 			}
 		}
+		*/
 
-		//fixing followers not helping to fight teamless crew on stations
-		[HarmonyPatch(typeof(Crew), "findTargets")]
-		public class Crew_findTargets
-		{
-			[HarmonyPostfix]
-			private static void Postfix(Crew __instance)
-			{
-				if (!__instance.isPassive && __instance.team?.threats != null)
-				{
-					foreach (Crew crew2 in __instance.currentCosm.crew.Values)
-					{
-						if (crew2 != null && crew2.faction != __instance.faction && crew2.faction != 9UL && crew2.state != CrewState.dead && Vector2.DistanceSquared(crew2.position, __instance.position) < 600f * 600f)
-						{
-							if (__instance.currentCosm.isStation && !__instance.team.threats.Contains(crew2.faction))
-							{
-								if (__instance.faction == CONFIG.playerFaction && crew2.goal != null && crew2.goal.GetType() == typeof(Crew) && ((crew2.goal as Crew).isPlayer || (crew2.goal as Crew).faction == CONFIG.playerFaction) && crew2.state == CrewState.attacking)
-								{
-									__instance.team.threats.Add(crew2.faction);
-								}
-								return;
-							}
-							break;
-						}
-					}
-				}
-			}
-		}
 
 		/* Obsolete
 
@@ -4090,7 +4134,7 @@ namespace Community_Bug_Fixes
 	}
 
 	//modified repair pattern of nano aura and nanite lattice skill to reduce the apparence of unconnected shards, which caused undocking in several cases.
-
+	/*
 	public static class ModuleExtensions
 	{
 		public static bool IsRooted(this Module module, Ship ship)
@@ -4112,6 +4156,7 @@ namespace Community_Bug_Fixes
 			return true;
 		}
 	}
+	*/
 	public static class CrewExtensions
 	{
 		static readonly ConditionalWeakTable<Crew, ShallNotPassObject> shallnotpass = new ConditionalWeakTable<Crew, ShallNotPassObject>();
