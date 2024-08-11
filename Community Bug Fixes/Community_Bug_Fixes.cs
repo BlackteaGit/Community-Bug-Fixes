@@ -72,7 +72,7 @@ namespace Community_Bug_Fixes
 					return false;
 					
 				}
-				if (__instance.stage == 3U && !PLAYER.greenArrows.ContainsKey(__instance.name))
+				if (__instance.stage == 3U && !PLAYER.hasGreenArrow(__instance.name))
 				{
 					for (int i = 0; i < PLAYER.currentSession.valuesOfInterest.Length; i++)
 					{
@@ -87,6 +87,28 @@ namespace Community_Bug_Fixes
 			}
 		}
 
+
+		//fixing: adding crew to AI ships which spawn with less crew then consoles.
+
+		[HarmonyPatch(typeof(WorldActor), "getShip", new Type[] { typeof(byte) })]
+		public class WorldActor_getShip
+		{
+			[HarmonyPostfix]
+			private static void Postfix(ref Ship __result)
+			{
+				if (__result != null && __result.faction != 2UL && __result.cosm?.crew != null && __result.cosm.crew.Count > 0)
+				{
+					if (__result.cosm.crew.Count <= __result.cosm.consoles.Count)
+					{
+						int crewtoadd = __result.cosm.consoles.Count - __result.cosm.crew.Count;
+						for (int i = 0; i < crewtoadd; i++)
+						{
+							__result.cosm.addOneCrew();
+						}
+					}
+				}
+			}
+		}
 
 
 		//QoL: you can sent ally ships to the homebase with travel/higgs drive.		
@@ -207,7 +229,7 @@ namespace Community_Bug_Fixes
 			}
 		}
 
-
+		
 
 		//fixing: End the siege quest not counting killed enemies properly.
 		[HarmonyPatch(typeof(SiegeQuest))]
@@ -496,7 +518,7 @@ namespace Community_Bug_Fixes
 																						PLAYER.currentSession.addLocalShip(ship, SessionEntry.preexisting);
 																						SCREEN_MANAGER.widgetChat.AddMessage("higgs ship spawned", MessageTarget.Command);
 																						ship.toggleDocking(true);
-																						if(!PLAYER.greenArrows.ContainsKey(triggerEvent.name))
+																						if(!PLAYER.hasGreenArrow(triggerEvent.name))
 																						PLAYER.addGreenArrow(triggerEvent.name, PLAYER.currentSession.grid, ship.position, triggerEvent);
 																					}
 																					else
@@ -1473,27 +1495,6 @@ public class WorldRev3_applySessionData
 }
 
 
-//fixing: adding crew to AI ships which spawn with less crew then consoles.
-
-[HarmonyPatch(typeof(WorldActor), "getShip", new Type[] { typeof(byte) })]
-public class WorldActor_getShip
-{
-	[HarmonyPostfix]
-	private static void Postfix(ref Ship __result)
-	{
-		if (__result != null && __result.faction != 2UL && __result.cosm?.crew != null && __result.cosm.crew.Count > 0)
-		{
-			if (__result.cosm.crew.Count <= __result.cosm.consoles.Count)
-			{
-				int crewtoadd = __result.cosm.consoles.Count - __result.cosm.crew.Count;
-				for (int i = 0; i < crewtoadd; i++)
-				{
-					__result.cosm.addOneCrew();
-				}					
-			}
-		}
-	}
-}
 
 //qol: ally crew will no longer assume control of the ship if Player orders the crew away from consoles and puts them on hold before leaving the ship.
 
