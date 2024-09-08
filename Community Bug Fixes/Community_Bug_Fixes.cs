@@ -28,6 +28,25 @@ namespace Community_Bug_Fixes
 			harmony.PatchAll();
 		}
 
+		[HarmonyPatch(typeof(TURRET_BAG), "getTip")]
+		public class TURRET_BAG_getTip
+		{
+
+			[HarmonyPostfix]
+			private static ToolTip Postfix(ToolTip __result, TurretType type)
+			{
+				if(__result != null)
+				{
+					Turret tur = TURRET_BAG.makeTurret(type);
+					if (tur != null && tur.burstCount > 1)
+					{
+						__result.addStat("Burst count", tur.bulletCount.ToString(), false);
+					}
+
+				}			
+				return __result;
+			}
+		}
 
 		[HarmonyPatch(typeof(HiggsHomecomingQuest), "test")]
 		public class HiggsHomecomingQuest_test
@@ -406,9 +425,29 @@ namespace Community_Bug_Fixes
 																				return;
 																			}
 																		}
+																		if (PLAYER.currentSession != null && PLAYER.currentSession.grid != new Point(316, -168))
+																		{
+																			SCREEN_MANAGER.widgetChat.AddMessage("Wrong sector, try again at sector 316, -168 ", MessageTarget.Whisper);
+																			return;
+																		}
+																		if ((typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>).Count <= 0)
+																		{
+																			SCREEN_MANAGER.widgetChat.AddMessage("Wrong game stage for this quest, Infiltrate SSC Shipyard Quest incomplete or Kill bud Quest already completed", MessageTarget.Whisper);
+																		}
 																		for (int i = 0; i < amount; i++)
 																		{
-																			int spawnIndex = (typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>)[RANDOM.Next((typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>).Count)];
+																			int spawnIndex;
+																			if ((typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>).Count > 0)
+																			{
+																				spawnIndex = (typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>)[RANDOM.Next((typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>).Count)];
+																			}
+																			else
+																			{
+																				spawnIndex = RANDOM.Next(35, 36);
+																			}
+																		
+																			
+																			
 																			ulong ind = pirateFaction.spawnShip(spawnIndex, pirateFaction.ctpSystem, pirateFaction.ctpHome, 1f);
 																			//pirateFaction.ctSmallGoons.Add(ind);
 																			(typeof(PirateFactionRev2).GetField("ctSmallGoons", flags).GetValue(pirateFaction) as List<ulong>).Add(ind);
@@ -464,9 +503,18 @@ namespace Community_Bug_Fixes
 																				return;
 																			}
 																		}
+																		if (PLAYER.currentSession != null && PLAYER.currentSession.grid != new Point(316, -168))
+																		{
+																			SCREEN_MANAGER.widgetChat.AddMessage("Wrong sector, try again at sector 316, -168 ", MessageTarget.Whisper);
+																			return;
+																		}
+																		if ((typeof(PirateFactionRev2).GetField("medShips", flags).GetValue(pirateFaction) as List<int>).Count <= 0)
+																		{
+																			SCREEN_MANAGER.widgetChat.AddMessage("Wrong game stage for this quest, Infiltrate SSC Shipyard quest incomplete or Kill Budd quest already completed", MessageTarget.Whisper);
+																		}
 																		for (int i = 0; i < amount; i++)
 																		{
-																			ulong ind = pirateFaction.spawnShip(53, pirateFaction.ctpSystem, pirateFaction.ctpHome, 1f);
+																																						ulong ind = pirateFaction.spawnShip(53, pirateFaction.ctpSystem, pirateFaction.ctpHome, 1f);
 																			//pirateFaction.ctBigGoons.Add(ind);
 																			(typeof(PirateFactionRev2).GetField("ctBigGoons", flags).GetValue(pirateFaction) as List<ulong>).Add(ind);
 																			NonPlayerShip nonPlayerShipBig = pirateFaction.ships[ind];
@@ -563,6 +611,95 @@ namespace Community_Bug_Fixes
 
 																}
 																SCREEN_MANAGER.widgetChat.AddMessage("all accessible hulls unlocked", MessageTarget.Whisper);
+																break;
+															case "research":
+																if (command.Length > 3)
+																{
+																	string research = command[3].ToLower();
+																	if (Int32.TryParse(research, out int id))
+																	{
+																		bool found = false;
+																		bool flag2 = LOOTBAG.modules.ContainsKey((uint)id);
+																		if (flag2)
+																		{
+																			Color mod = LOOTBAG.modules[(uint)id];
+																			bool flag3 = TILEBAG.rotationGroups.ContainsKey(mod);
+																			if (flag3)
+																			{
+																				Color[] rots = TILEBAG.rotationGroups[mod];
+																				foreach (Color c in rots)
+																				{
+																					bool flag4 = c != Color.Transparent;
+																					if (flag4)
+																					{
+																						CHARACTER_DATA.unlockModule(c);
+																					}
+																				}
+																			}
+																			else
+																			{
+																				CHARACTER_DATA.unlockModule(mod);
+																			}
+																			ResearchProgress ResearchProgress = new ResearchProgress((uint)id);
+																			//CHARACTER_DATA.addResearch(ResearchProgress);
+																			CHARACTER_DATA.excludeResearch((uint)id);
+																			CHARACTER_DATA.removeResearch(ResearchProgress);
+																			SCREEN_MANAGER.alerts.Enqueue("Module unlocked");
+																			found = true;
+																		}
+																		bool flag5 = LOOTBAG.turrets.ContainsKey((uint)id);
+																		if (flag5)
+																		{
+																			CHARACTER_DATA.unlockTurret(LOOTBAG.turrets[(uint)id]);
+																			SCREEN_MANAGER.alerts.Enqueue("Turret unlocked");
+																			found = true;
+																		}
+																		bool flag6 = LOOTBAG.ships.ContainsKey((uint)id);
+																		if (flag6)
+																		{
+																			CHARACTER_DATA.unlockHull(LOOTBAG.ships[(uint)id]);
+																			SCREEN_MANAGER.alerts.Enqueue("Ship unlocked");
+																			found = true;
+																		}
+																		bool flag7 = LOOTBAG.reactMods.ContainsKey((uint)id);
+																		if (flag7)
+																		{
+																		}
+																		bool flag8 = LOOTBAG.capMods.ContainsKey((uint)id);
+																		if (flag8)
+																		{
+																			CHARACTER_DATA.capacity += unchecked((ulong)LOOTBAG.capMods[(uint)id]);
+																			SCREEN_MANAGER.alerts.Enqueue("Capacity upgraded");
+																			found = true;
+																		}
+																		bool flag9 = LOOTBAG.refineMods.ContainsKey((uint)id);
+																		if (flag9)
+																		{
+																			PLAYER.currentGame.furnaceCount += LOOTBAG.refineMods[(uint)id];
+																			found = true;
+																		}
+																		bool flag10 = LOOTBAG.crewUnlocks.Contains((uint)id);
+																		if (flag10)
+																		{
+																			CHARACTER_DATA.maxCrew++;
+																			SCREEN_MANAGER.alerts.Enqueue("Crew capacity increased");
+																			found = true;
+																		}
+																		if (!found)
+																		{
+																			SCREEN_MANAGER.widgetChat.AddMessage("research id not found", MessageTarget.Whisper);
+																		}
+																	}
+																	else
+																	{
+																		SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																	}
+
+																}
+																else
+																{
+																	SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
+																}
 																break;
 															default:
 																SCREEN_MANAGER.widgetChat.AddMessage("unknown command", MessageTarget.Whisper);
@@ -767,6 +904,7 @@ namespace Community_Bug_Fixes
 													SCREEN_MANAGER.widgetChat.AddMessage("> spawn small_pirate *amount*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> spawn big_pirate *amount*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> unlock hulls", MessageTarget.Whisper);
+													SCREEN_MANAGER.widgetChat.AddMessage("> unlock research *id*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> delete hull *name*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> config interior_effects *true/false*", MessageTarget.Whisper);
 													SCREEN_MANAGER.widgetChat.AddMessage("> config all_flags *true/false*", MessageTarget.Whisper);
@@ -789,6 +927,21 @@ namespace Community_Bug_Fixes
 							}
 						}
 					}
+
+			}
+		}
+
+
+		[HarmonyPatch(typeof(BombDroneMissileController))]
+		[HarmonyPatch(MethodType.Constructor)]
+		[HarmonyPatch(new Type[] { })]
+		public class BombDroneMissileController_BombDroneMissileController
+		{
+			[HarmonyPostfix]
+			private static void Postfix(ref float ___maxAcceleration)
+			{
+
+				___maxAcceleration = 45f;
 
 			}
 		}
@@ -824,15 +977,16 @@ namespace Community_Bug_Fixes
 
 		//fixing: using logistics room on a ship allows unintended use of logistics commands on the command source ship.
 		//qol: scraping a ship at your homebase will now return 100% of resources if the ship wasn build by the player instead of captured from another faction.
+
 		[HarmonyPatch(typeof(LogisticsScreenRev3), "doRightClick")]
 		public class LogisticsScreenRev3_doRightClick
 		{
 
 			[HarmonyPrefix]
-			private static void Prefix(LogisticsScreenRev3 __instance, ref string opt, Ship ___selected)
+			private static void Prefix(ref ulong __state, LogisticsScreenRev3 __instance, ref string opt, Ship ___selected, Ship[] ___packedShips)
 			{
-
-				if (___selected == null || PLAYER.currentShip == null || PLAYER.currentGame == null)
+				__state = ___selected.id;
+				if (___selected == null || PLAYER.currentShip == null || PLAYER.currentGame == null || ___packedShips.Contains(___selected))
 					return;
 
 				if (opt != "" && ___selected.id == PLAYER.currentShip.id && ___selected.id != PLAYER.currentGame.homeBaseId)
@@ -840,7 +994,7 @@ namespace Community_Bug_Fixes
 					SCREEN_MANAGER.widgetChat.AddMessage("Invalid target. Command target ship has to be distinct from command source ship.", MessageTarget.Ship);
 					opt = "";
 				}
-
+				
 				if (opt == "Scrap")
 				{
 					if (PLAYER.currentSession.GetType() == typeof(BattleSessionSC))
@@ -849,6 +1003,31 @@ namespace Community_Bug_Fixes
 					}
 					else
 					{
+
+						bool isPacked = false;
+						foreach (Ship s in ___packedShips)
+						{
+							if (s != null && s.botD.Length == ___selected.botD.Length)
+							{
+								isPacked = true;
+								
+								SCREEN_MANAGER.alerts.Enqueue("Scraping chanceled, you have a packed ship of the same type in inventory");
+								SCREEN_MANAGER.widgetChat.AddMessage("You can only scrap packed ships if you have a packed ship of the same type as docked in inventory", MessageTarget.Command);
+								__state = 0;
+								opt = "";
+								return;
+								
+							}
+
+						}
+						if(!___selected.canDropTurrets)
+						{
+							SCREEN_MANAGER.alerts.Enqueue("Unable to scrap a hangar spawned ship at an airlock");
+							SCREEN_MANAGER.widgetChat.AddMessage("Scraping chanceled, you can not scrap a ship that was spawned from a packed ship in your inventory at an airlock.", MessageTarget.Command);
+							__state = 0;
+							opt = "";
+							return;
+						}
 						__instance.stashResources(___selected);
 						if (___selected.cosm != null)
 						{
@@ -883,140 +1062,106 @@ namespace Community_Bug_Fixes
 							}
 						}
 					IL_15D:
-						Dictionary<InventoryItemType, int> dictionary = new Dictionary<InventoryItemType, int>();
-						if (___selected.ownershipHistory.Exists((faction) => faction != CONFIG.playerFaction && faction != CONFIG.deadShipFaction && faction != ___selected.id))
+						bool flag5 = PLAYER.currentWorld.economy.allNodes.ContainsKey(PLAYER.currentShip.id);
+						if (flag5)
 						{
-							dictionary = TILEBAG.scrapValue(___selected.botD);
-						}
-						else
-						{
-							//qol: scraping a ship at your homebase will now return 100% of resources if the ship wasn build by the player instead of captured from another faction.
-							Dictionary<InventoryItemType, float> newdictionary = new Dictionary<InventoryItemType, float>();
-							foreach (Color index in ___selected.botD)
+							EconomyNode node = PLAYER.currentWorld.economy.allNodes[PLAYER.currentShip.id];
+							Dictionary<InventoryItemType, int> dictionary = new Dictionary<InventoryItemType, int>();
+							if (___selected.ownershipHistory.Exists((faction) => faction != CONFIG.playerFaction && faction != CONFIG.deadShipFaction && faction != ___selected.id))
 							{
-								if (index.A > 20)
-								{
-									Module module = TILEBAG.getModule(index);
-									if (module != null)
-									{
-										Dictionary<InventoryItemType, float> resources = TILEBAG.GetResources(module);
-										foreach (InventoryItemType inventoryItemType in resources.Keys)
-										{
-											if (newdictionary.ContainsKey(inventoryItemType))
-											{
-												Dictionary<InventoryItemType, float> dictionary3 = newdictionary;
-												InventoryItemType key = inventoryItemType;
-												dictionary3[key] += resources[inventoryItemType];
-											}
-											else
-											{
-												newdictionary.Add(inventoryItemType, resources[inventoryItemType]);
-											}
-										}
-									}
-								}
-							}
-							foreach (KeyValuePair<InventoryItemType, float> keyValuePair in newdictionary)
-							{
-								dictionary.Add(keyValuePair.Key, (int)Math.Round((double)keyValuePair.Value));
-							}
-						}
-						ulong num = 0UL;
-						___selected.performUndock(PLAYER.currentSession);
-						foreach (InventoryItemType inventoryItemType in dictionary.Keys)
-						{
-							ulong num2 = (ulong)((long)dictionary[inventoryItemType]);
-							num += num2;
-							long amount = CHARACTER_DATA.getResource(inventoryItemType) + (long)num2;
-							CHARACTER_DATA.setResource(inventoryItemType, amount);
-							PLAYER.currentShip.floatyText.Enqueue("+" + num2.ToString() + " " + inventoryItemType.ToString());
-						}
-						num /= 50UL;
-						CHARACTER_DATA.exp += num;
-						PLAYER.currentSession.despawnShip(___selected);
-					}
-					opt = "";
-				}
-
-				///fixed
-				//fixing: unable to use logistics room to stash resources from homebase cargobays to ship building resources pool. (now you can use "Unload cargo" on your homebase)
-				/*
-				if (opt == "Unload cargo" && ___selected.id == PLAYER.currentGame.homeBaseId && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
-				{
-					var shipStores = CHARACTER_DATA.getCargoTabs();
-					List<string> cargoNames = CHARACTER_DATA.getCargoNames();
-					BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Static;
-					if (shipStores.Count > 0)
-					{
-						for (int i = 0; i < shipStores.Count; i++)
-						{
-							var openStorage = shipStores[i];
-
-							string[] storageTabNames;
-							if (cargoNames.Count != shipStores.Count)
-							{
-								storageTabNames = new string[shipStores.Count];
-								for (int j = 0; j < shipStores.Count; j++)
-								{
-									storageTabNames[j] = "Tab " + j.ToString();
-								}
+								dictionary = TILEBAG.scrapValue(___selected.botD);
 							}
 							else
 							{
-								storageTabNames = cargoNames.ToArray();
+								//qol: scraping a ship at your homebase will now return 100% of resources if the ship wasn build by the player instead of captured from another faction.
+								dictionary = TILEBAG.scrapValue(___selected.botD, 1f);
 							}
-							var args = new object[] { openStorage };
-							typeof(LogisticsScreenRev3).GetMethod("stashResources", flags, null, new Type[] { typeof(Storage) }, null).Invoke(__instance, args);
-							CHARACTER_DATA.storeCargoTab(i, storageTabNames[i], args[0] as Storage);
-						}
-						opt = "";
-					}
-				}
-				///fixed
-				// scraping a ship with cargo get's the cargo deleted (now it will be placed as cargo pods in space instead)
-				if (opt == "Scrap" && PLAYER.currentSession.GetType() == typeof(BattleSessionSP))
-				{
-					var ship = ___selected;
-					MicroCosm cosm = PROCESS_REGISTER.getCosm(ship);
-					if (cosm.cargoBays != null && cosm.cargoBays.Count > 0)
-					{
-						for (int j = 0; j < cosm.cargoBays.Count; j++)
-						{
-							if (cosm.cargoBays[j].storage != null)
+							ulong expgains = 0UL;
+							___selected.performUndock(PLAYER.currentSession);
+							foreach (InventoryItemType inventoryItemType in dictionary.Keys)
 							{
-								if (cosm.cargoBays[j].storage.inventory == null)
+								
+								ulong amt = (ulong)((long)dictionary[inventoryItemType]);
+								expgains += amt;
+								bool flag11 = node.storage.ContainsKey(inventoryItemType);
+								unchecked
 								{
-									return;
-								}
-								for (int i = 0; i < cosm.cargoBays[j].storage.inventory.Length; i++)
-								{
-									if (cosm.cargoBays[j].storage.inventory[i] != null)
+									if (flag11)
 									{
-										while (cosm.cargoBays[j].storage.inventory[i] != null)
+										Dictionary<InventoryItemType, float> storage = node.storage;
+										InventoryItemType key = inventoryItemType;
+										storage[key] += amt;
+									}
+									PLAYER.currentShip.floatyText.Enqueue("+" + amt.ToString() + " " + inventoryItemType.ToString());
+								}
+							}
+							expgains /= 50UL;
+							CHARACTER_DATA.exp += expgains;
+							
+							
+	
+							if (isPacked)
+							{
+								/*
+								for (int i = 0; i < ___packedShips.Length; i++)
+								{
+									if (___packedShips[i] == ___selected)//(___packedShips[i] != null && ___packedShips[i].botHash == ___selected.botHash && ___packedShips[i].topHash == ___selected.topHash)// && ___packedShips[i].data == ___selected.data)
+									{
+										___packedShips[i] = null;
+										bool flag9 = i >= 0 && i < PLAYER.avatar.inventory.Length;
+										if (flag9)
 										{
-											InventoryItem item = cosm.cargoBays[j].storage.getItem(i);
-											if (item != null)
+											PLAYER.avatar.inventory[i] = null;
+											break;
+										}
+										else
+										{
+											bool flag10 = i == 16;
+											if (flag10)
 											{
-												CargoPod cargoPod = new CargoPod(item, ship.position);
-												CargoPod cargoPod2 = cargoPod;
-												cargoPod2.position.X = cargoPod2.position.X + ((float)(RANDOM.NextDouble() * 100.0) - 50f);
-												CargoPod cargoPod3 = cargoPod;
-												cargoPod3.position.Y = cargoPod3.position.Y + ((float)(RANDOM.NextDouble() * 100.0) - 50f);
-												PLAYER.currentSession.cargo.Add(cargoPod);
-												PLAYER.currentSession.cargoDetection(cargoPod.position, true);
+												PLAYER.avatar.ship = null;
+												break;
 											}
 										}
 									}
 								}
+								*/
 							}
+							EVENTS.resourceChange();
+							PLAYER.currentSession.despawnShip(___selected);
 						}
 					}
+					
+					opt = "";
 				}
-				*/
-			}
-		}
 
-		
+			}
+
+			[HarmonyPostfix]
+			private static void Postfix(ref ulong __state, LogisticsScreenRev3 __instance, ref string opt, Ship ___selected, Ship[] ___packedShips)
+			{
+				if (opt == "Scrap")
+				{
+					/*
+						foreach (ulong i in PLAYER.currentGame.shipsToDespawn)
+						{
+							bool flag26 = PLAYER.currentSession.allShips.ContainsKey(i);
+							if (flag26)
+							{
+								Ship despawn = PLAYER.currentSession.allShips[i];
+								despawn.performUndock(PLAYER.currentSession);
+								PLAYER.currentSession.despawnShip(despawn);
+							}
+						}
+						PLAYER.currentGame.shipsToDespawn.Clear();
+						*/
+					EVENTS.resourceChange();
+				}
+
+			}
+	}
+
+	
 
 		//qol: player avatar will continue to run forward instead of turning back until a movement key is released after passing through airlock to another ship if both ships have their airlocks on the same axis (facing the same direction).
 		[HarmonyPatch(typeof(ShipNavigationRev3), "updateInput")]
